@@ -57,3 +57,46 @@ export interface ViewBox {
   width: number;
   height: number;
 }
+
+export type CityLevel = 'city' | 'district' | 'building';
+
+export interface CityBuildingVisualItem {
+  kind: 'building';
+  key: string;
+  building: CityBuilding;
+  bounds: Bounds;
+}
+
+export interface CityClusterVisualItem {
+  kind: 'cluster';
+  key: string;
+  label: string;
+  count: number;
+  totalBytes: number;
+  category: FileCategory;
+  freshness: Freshness;
+  firstLevelDirectory: string;
+  districtKey: string;
+  representative: CityBuilding;
+  bounds: Bounds;
+}
+
+export type CityVisualItem = CityBuildingVisualItem | CityClusterVisualItem;
+
+export interface CityDistrict {
+  key: string;
+  label: string;
+  category: FileCategory;
+  firstLevelDirectory: string;
+  directoryDepth: number;
+  count: number;
+  totalBytes: number;
+  bounds: Bounds;
+}
+
+export interface CityPresentation {
+  items: CityVisualItem[];
+  districts: CityDistrict[];
+  contentBounds: Bounds | null;
+  sourceCount: number;
+}
