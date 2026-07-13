@@ -67,6 +67,50 @@ test('renders a cluster as a distinct three-building stack with its file count',
   expect(container.querySelector('[data-glyph="cluster"]')).toBeInTheDocument();
 });
 
+test('uses compact display coordinates for every cluster face, roof and badge', () => {
+  const compactBuilding = { ...building, x: 20, y: 40 };
+  const compactCluster: CityVisualItem = {
+    ...clusterItem,
+    representative: { ...building, x: 8_000, y: 9_000 },
+    displayBuilding: compactBuilding,
+    bounds: { minX: 8, minY: 18, maxX: 110, maxY: 124 },
+  };
+  const { container } = render(
+    <svg><BuildingGlyph item={compactCluster} selected={false} onSelect={vi.fn()} /></svg>,
+  );
+
+  const fronts = [...container.querySelectorAll<SVGRectElement>('[data-face="front"]')];
+  expect(fronts.map((face) => [face.getAttribute('x'), face.getAttribute('y')])).toEqual([
+    ['8', '28'],
+    ['14', '34'],
+    ['20', '40'],
+  ]);
+  expect(container.querySelectorAll('[data-face="roof"]')).toHaveLength(3);
+  expect(container.querySelector('.building-glyph__badge rect')).toHaveAttribute('x', '78');
+  expect(container.querySelector('.building-glyph__badge rect')).toHaveAttribute('y', '20');
+
+  for (const rect of container.querySelectorAll<SVGRectElement>('[data-face="front"], .building-glyph__badge rect')) {
+    const x = Number(rect.getAttribute('x'));
+    const y = Number(rect.getAttribute('y'));
+    expect(x).toBeGreaterThanOrEqual(compactCluster.bounds.minX);
+    expect(y).toBeGreaterThanOrEqual(compactCluster.bounds.minY);
+    expect(x + Number(rect.getAttribute('width'))).toBeLessThanOrEqual(compactCluster.bounds.maxX);
+    expect(y + Number(rect.getAttribute('height'))).toBeLessThanOrEqual(compactCluster.bounds.maxY);
+  }
+  for (const polygon of container.querySelectorAll<SVGPolygonElement>('[data-face="roof"], [data-face="side"]')) {
+    const coordinates = polygon.getAttribute('points')!.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    const xs = coordinates.filter((_, index) => index % 2 === 0);
+    const ys = coordinates.filter((_, index) => index % 2 === 1);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(compactCluster.bounds.minX);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(compactCluster.bounds.maxX);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(compactCluster.bounds.minY);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(compactCluster.bounds.maxY);
+  }
+  const badgeText = container.querySelector('.building-glyph__badge text')!;
+  expect(Number(badgeText.getAttribute('x'))).toBeLessThanOrEqual(compactCluster.bounds.maxX);
+  expect(Number(badgeText.getAttribute('y'))).toBeLessThanOrEqual(compactCluster.bounds.maxY);
+});
+
 test('selects a glyph with pointer, Enter and Space and reports selected state', async () => {
   const user = userEvent.setup();
   const onSelect = vi.fn();

@@ -100,16 +100,21 @@ function BuildingShape({
   );
 }
 
-function ClusterShape({ item }: { item: Extract<CityVisualItem, { kind: 'cluster' }> }) {
-  const { representative } = item;
-  const badgeX = representative.x + representative.width + 4;
-  const badgeY = representative.y - 20;
+function ClusterShape({
+  item,
+  building,
+}: {
+  item: Extract<CityVisualItem, { kind: 'cluster' }>;
+  building: CityBuilding;
+}) {
+  const badgeX = building.x + building.width + 4;
+  const badgeY = building.y - 20;
 
   return (
     <g data-glyph="cluster">
-      <BuildingShape building={representative} offsetX={-12} offsetY={-12} cluster windows={false} />
-      <BuildingShape building={representative} offsetX={-6} offsetY={-6} cluster windows={false} />
-      <BuildingShape building={representative} cluster />
+      <BuildingShape building={building} offsetX={-12} offsetY={-12} cluster windows={false} />
+      <BuildingShape building={building} offsetX={-6} offsetY={-6} cluster windows={false} />
+      <BuildingShape building={building} cluster />
       <g className="building-glyph__badge" aria-hidden="true">
         <rect x={badgeX} y={badgeY} width="32" height="24" rx="12" />
         <text x={badgeX + 16} y={badgeY + 16} textAnchor="middle">{item.count}</text>
@@ -152,7 +157,7 @@ export function BuildingGlyph({ item, selected, onSelect }: BuildingGlyphProps) 
       <title>{accessibleName}</title>
       {item.kind === 'building'
         ? <BuildingShape building={building} />
-        : <ClusterShape item={item} />}
+        : <ClusterShape item={item} building={building} />}
     </g>
   );
 }

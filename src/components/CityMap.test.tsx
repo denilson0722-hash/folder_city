@@ -10,6 +10,7 @@ class TestResizeObserver implements ResizeObserver {
   static instances: TestResizeObserver[] = [];
 
   readonly callback: ResizeObserverCallback;
+  observedTarget: Element | null = null;
 
   constructor(callback: ResizeObserverCallback) {
     this.callback = callback;
@@ -17,6 +18,7 @@ class TestResizeObserver implements ResizeObserver {
   }
 
   observe(target: Element) {
+    this.observedTarget = target;
     this.callback([{
       target,
       contentRect: {
@@ -172,9 +174,18 @@ test('auto-fits all district and title bounds to the measured viewport', async (
   }
 });
 
+test('observes the SVG viewport dimensions instead of controls and legend', () => {
+  renderMap();
+  const latestObserver = TestResizeObserver.instances[TestResizeObserver.instances.length - 1];
+
+  expect(latestObserver.observedTarget).toBe(
+    screen.getByLabelText('文件夹城市地图'),
+  );
+});
+
 test('measures with a window resize fallback when ResizeObserver is unavailable', async () => {
   const originalResizeObserver = globalThis.ResizeObserver;
-  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+  const bounds = vi.spyOn(SVGElement.prototype, 'getBoundingClientRect').mockReturnValue({
     width: 900,
     height: 600,
     x: 0,
@@ -443,4 +454,30 @@ test('virtualizes oversized district items while retaining exact totals', async 
   const after = new Set([...document.querySelectorAll('[data-glyph="file"]')].map((node) => node.getAttribute('aria-label')));
   expect(after).not.toEqual(before);
   expect(screen.getByRole('button', { name: /文档街区，共 700 个文件/ })).toBeInTheDocument();
+});
+
+test('keeps a selected exact building mounted without disabling large-district virtualization', async () => {
+  const oversizedDistrict = manyBuildings(700);
+  const props = {
+    buildings: oversizedDistrict,
+    activeDistrictKey: oversizedDistrict[0].districtKey,
+    onDistrictChange: vi.fn(),
+    onSelect: vi.fn(),
+    onClearSelection: vi.fn(),
+  };
+  const { rerender } = render(<CityMap {...props} selectedPath={null} />);
+  const map = screen.getByLabelText('文件夹城市地图');
+  await waitFor(() => expect(map).not.toHaveAttribute('viewBox', '0 0 960 640'));
+  for (let index = 0; index < 18; index += 1) {
+    fireEvent.wheel(map, { deltaY: -1 });
+  }
+
+  const selected = oversizedDistrict[699];
+  expect(screen.queryByRole('button', { name: new RegExp(selected.name) })).not.toBeInTheDocument();
+  rerender(<CityMap {...props} selectedPath={selected.relativePath} />);
+
+  const rendered = document.querySelectorAll('[data-glyph="file"]');
+  expect(rendered.length).toBeGreaterThan(0);
+  expect(rendered.length).toBeLessThan(700);
+  expect(screen.getByRole('button', { name: new RegExp(selected.name) })).toHaveAttribute('aria-pressed', 'true');
 });

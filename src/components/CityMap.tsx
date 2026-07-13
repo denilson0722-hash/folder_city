@@ -89,7 +89,6 @@ export function CityMap({
   const [manualView, setManualView] = useState(false);
   const [flight, setFlight] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
-  const containerRef = useRef<HTMLElement>(null);
   const mapRef = useRef<SVGSVGElement>(null);
   const activePointer = useRef<{ id: number; x: number; y: number } | null>(null);
   const viewBoxRef = useRef<ViewBox>(INITIAL_VIEW_BOX);
@@ -184,8 +183,8 @@ export function CityMap({
   }, []);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (container === null) {
+    const map = mapRef.current;
+    if (map === null) {
       return undefined;
     }
 
@@ -196,8 +195,8 @@ export function CityMap({
         ));
       }
     };
-    const measureContainer = () => {
-      const bounds = container.getBoundingClientRect();
+    const measureMap = () => {
+      const bounds = map.getBoundingClientRect();
       measure(bounds.width, bounds.height);
     };
 
@@ -207,13 +206,13 @@ export function CityMap({
           measure(entry.contentRect.width, entry.contentRect.height);
         }
       });
-      observer.observe(container);
+      observer.observe(map);
       return () => observer.disconnect();
     }
 
-    measureContainer();
-    window.addEventListener('resize', measureContainer);
-    return () => window.removeEventListener('resize', measureContainer);
+    measureMap();
+    window.addEventListener('resize', measureMap);
+    return () => window.removeEventListener('resize', measureMap);
   }, []);
 
   useEffect(() => {
@@ -242,9 +241,18 @@ export function CityMap({
     return () => map.removeEventListener('wheel', handleWheel);
   }, [applyViewBox, stopFlight]);
 
-  const renderedItems = level === 'district' && presentation.sourceCount > LARGE_DISTRICT_THRESHOLD
+  const virtualizedItems = presentationLevel === 'district' && presentation.sourceCount > LARGE_DISTRICT_THRESHOLD
     ? itemsIntersectingViewBox(presentation.items, viewBox)
     : presentation.items;
+  const selectedItem = selectedPath === null
+    ? undefined
+    : presentation.items.find((item) => (
+      item.kind === 'building' && item.building.relativePath === selectedPath
+    ));
+  const renderedItems = selectedItem !== undefined
+    && !virtualizedItems.some((item) => item.key === selectedItem.key)
+    ? [...virtualizedItems, selectedItem]
+    : virtualizedItems;
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
     if (event.button !== 0) {
@@ -290,7 +298,7 @@ export function CityMap({
   }
 
   return (
-    <section ref={containerRef} className="city-map" data-manual-view={manualView || undefined}>
+    <section className="city-map" data-manual-view={manualView || undefined}>
       <CityControls
         level={level}
         onZoomIn={() => changeZoom(0.9)}
