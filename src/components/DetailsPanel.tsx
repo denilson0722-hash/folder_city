@@ -3,16 +3,17 @@ import type { CityBuilding } from '../types';
 
 export interface DetailsPanelProps {
   building: CityBuilding | null;
+  layout: 'sidebar' | 'drawer';
   onClose: () => void;
 }
 
-export function DetailsPanel({ building, onClose }: DetailsPanelProps) {
+export function DetailsPanel({ building, layout, onClose }: DetailsPanelProps) {
   if (building === null) {
     return null;
   }
 
   return (
-    <aside aria-label="文件详情">
+    <aside aria-label="文件详情" data-layout={layout}>
       <h2>文件详情</h2>
       <button type="button" aria-label="关闭详情" onClick={onClose}>关闭</button>
       <dl>

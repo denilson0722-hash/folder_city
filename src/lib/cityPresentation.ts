@@ -17,6 +17,8 @@ const ROOF_DEPTH = 10;
 const SHADOW_DEPTH = 12;
 const DISTRICT_PADDING = 24;
 const DISTRICT_TITLE_HEIGHT = 34;
+const DISTRICT_TITLE_LEFT = 14;
+const DISTRICT_TITLE_BADGE_GAP = 64;
 
 const CATEGORY_LABELS: Record<FileCategory, string> = {
   document: '文档',
@@ -50,6 +52,12 @@ function boundsForBuilding(building: CityBuilding): Bounds {
   };
 }
 
+function estimatedTitleWidth(label: string): number {
+  return Array.from(label).reduce((width, character) => (
+    width + (/^[\x00-\xff]$/.test(character) ? 8 : 15)
+  ), 0);
+}
+
 function buildingItem(building: CityBuilding): CityVisualItem {
   return {
     kind: 'building',
@@ -74,6 +82,12 @@ function districtsFor(buildings: readonly CityBuilding[]): CityDistrict[] {
   return [...groups.entries()].map(([key, members]) => {
     const first = members[0];
     const buildingBounds = unionBounds(members.map(boundsForBuilding))!;
+    const minX = buildingBounds.minX - DISTRICT_PADDING;
+    const contentMaxX = buildingBounds.maxX + DISTRICT_PADDING;
+    const titleMaxX = minX
+      + DISTRICT_TITLE_LEFT
+      + estimatedTitleWidth(first.districtLabel)
+      + DISTRICT_TITLE_BADGE_GAP;
     return {
       key,
       label: first.districtLabel,
@@ -83,9 +97,9 @@ function districtsFor(buildings: readonly CityBuilding[]): CityDistrict[] {
       count: members.length,
       totalBytes: members.reduce((sum, building) => sum + building.size, 0),
       bounds: {
-        minX: buildingBounds.minX - DISTRICT_PADDING,
+        minX,
         minY: buildingBounds.minY - DISTRICT_PADDING - DISTRICT_TITLE_HEIGHT,
-        maxX: buildingBounds.maxX + DISTRICT_PADDING,
+        maxX: Math.max(contentMaxX, titleMaxX),
         maxY: buildingBounds.maxY + DISTRICT_PADDING,
       },
     };

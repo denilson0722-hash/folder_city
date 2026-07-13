@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { CityMap } from './components/CityMap';
+import { CityNavigation } from './components/CityNavigation';
 import { Controls, type CityFilters } from './components/Controls';
 import { DetailsPanel } from './components/DetailsPanel';
 import { StatsBar } from './components/StatsBar';
@@ -9,6 +10,96 @@ import { isDirectoryPickerSupported } from './lib/fileSystem';
 import { buildCity, summarize } from './lib/cityModel';
 
 const INITIAL_FILTERS: CityFilters = { category: 'all', freshness: 'all' };
+
+interface CitySandboxProps {
+  buildings: ReturnType<typeof buildCity>;
+  selectedPath: string | null;
+  activeDistrictKey: string | null;
+  onSelectBuilding: (relativePath: string) => void;
+  onClearSelection: () => void;
+  onDistrictChange: (districtKey: string | null) => void;
+}
+
+function useNarrowSandbox(): boolean {
+  const query = '(max-width: 900px)';
+  const read = () => (
+    typeof window.matchMedia === 'function'
+      ? window.matchMedia(query).matches
+      : window.innerWidth <= 900
+  );
+  const [narrow, setNarrow] = useState(read);
+
+  useEffect(() => {
+    if (typeof window.matchMedia === 'function') {
+      const media = window.matchMedia(query);
+      const update = () => setNarrow(media.matches);
+      media.addEventListener('change', update);
+      update();
+      return () => media.removeEventListener('change', update);
+    }
+
+    const update = () => setNarrow(read());
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  return narrow;
+}
+
+function CitySandbox({
+  buildings,
+  selectedPath,
+  activeDistrictKey,
+  onSelectBuilding,
+  onClearSelection,
+  onDistrictChange,
+}: CitySandboxProps) {
+  const narrow = useNarrowSandbox();
+  const selectedBuilding = buildings.find((building) => building.relativePath === selectedPath) ?? null;
+  const detailsLayout = narrow ? 'drawer' : 'sidebar';
+
+  return (
+    <section className="city-sandbox" aria-label="城市工作台">
+      <CityNavigation
+        city={buildings}
+        activeDistrictKey={activeDistrictKey}
+        onSelectDistrict={onDistrictChange}
+        onShowCity={() => onDistrictChange(null)}
+      />
+      <section className="city-sandbox__map" aria-label="城市沙盘">
+        {buildings.length === 0 ? (
+          <p className="filtered-empty" aria-live="polite">没有建筑符合当前筛选条件。</p>
+        ) : (
+          <CityMap
+            buildings={buildings}
+            selectedPath={selectedPath}
+            activeDistrictKey={activeDistrictKey}
+            onDistrictChange={onDistrictChange}
+            onSelect={(building) => onSelectBuilding(building.relativePath)}
+            onClearSelection={onClearSelection}
+          />
+        )}
+      </section>
+      <aside
+        className={`city-sandbox__info city-sandbox__info--${detailsLayout}${selectedBuilding === null ? ' city-sandbox__info--empty' : ''}`}
+        aria-label="信息面板"
+      >
+        {selectedBuilding === null && !narrow ? (
+          <div className="city-sandbox__info-placeholder">
+            <p className="eyebrow">BUILDING FILE</p>
+            <h2>选择一栋建筑</h2>
+            <p>文件的路径、类型与城市故事会显示在这里。</p>
+          </div>
+        ) : null}
+        <DetailsPanel
+          building={selectedBuilding}
+          layout={detailsLayout}
+          onClose={onClearSelection}
+        />
+      </aside>
+    </section>
+  );
+}
 
 function AppHeader() {
   return (
@@ -24,6 +115,7 @@ export default function App() {
   const { status, result, error, scannedCount, pickFolder, reset } = useFolderScan();
   const [filters, setFilters] = useState<CityFilters>(INITIAL_FILTERS);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [activeDistrictKey, setActiveDistrictKey] = useState<string | null>(null);
   const directoryPickerSupported = isDirectoryPickerSupported();
   const city = useMemo(
     () => result === null ? [] : buildCity(result.entries, result.scannedAt),
@@ -45,10 +137,20 @@ export default function App() {
     }
   }, [selectedBuilding, selectedPath]);
 
+  useEffect(() => {
+    if (
+      activeDistrictKey !== null
+      && !buildings.some((building) => building.districtKey === activeDistrictKey)
+    ) {
+      setActiveDistrictKey(null);
+    }
+  }, [activeDistrictKey, buildings]);
+
   function handleReset() {
     reset();
     setFilters(INITIAL_FILTERS);
     setSelectedPath(null);
+    setActiveDistrictKey(null);
   }
 
   function renderControls() {
@@ -154,19 +256,17 @@ export default function App() {
           wasTruncated={result.wasTruncated}
         />
       </section>
-      <section className="city-stage" aria-label="城市浏览区">
-        {buildings.length === 0 ? (
-          <p className="filtered-empty" aria-live="polite">没有建筑符合当前筛选条件。</p>
-        ) : (
-          <CityMap
-            buildings={buildings}
-            selectedPath={selectedPath}
-            onSelect={(building) => setSelectedPath(building.relativePath)}
-            onClearSelection={() => setSelectedPath(null)}
-          />
-        )}
-        <DetailsPanel building={selectedBuilding} onClose={() => setSelectedPath(null)} />
-      </section>
+      <CitySandbox
+        buildings={buildings}
+        selectedPath={selectedPath}
+        activeDistrictKey={activeDistrictKey}
+        onSelectBuilding={setSelectedPath}
+        onClearSelection={() => setSelectedPath(null)}
+        onDistrictChange={(districtKey) => {
+          setActiveDistrictKey(districtKey);
+          setSelectedPath(null);
+        }}
+      />
     </main>
   );
 }

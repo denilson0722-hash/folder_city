@@ -164,6 +164,67 @@ test('auto-fits all district and title bounds to the measured viewport', async (
     expect(plateX + plateWidth).toBeLessThanOrEqual(x + width);
     expect(plateY + plateHeight).toBeLessThanOrEqual(y + height);
   }
+  for (const title of document.querySelectorAll('.district-layer__title')) {
+    expect(Number(title.getAttribute('x'))).toBeGreaterThanOrEqual(x);
+    expect(Number(title.getAttribute('y'))).toBeGreaterThanOrEqual(y);
+    expect(Number(title.getAttribute('x'))).toBeLessThanOrEqual(x + width);
+    expect(Number(title.getAttribute('y'))).toBeLessThanOrEqual(y + height);
+  }
+});
+
+test('measures with a window resize fallback when ResizeObserver is unavailable', async () => {
+  const originalResizeObserver = globalThis.ResizeObserver;
+  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+    width: 900,
+    height: 600,
+    x: 0,
+    y: 0,
+    top: 0,
+    right: 900,
+    bottom: 600,
+    left: 0,
+    toJSON: () => ({}),
+  });
+  const addEventListener = vi.spyOn(window, 'addEventListener');
+  vi.stubGlobal('ResizeObserver', undefined);
+
+  try {
+    renderMap();
+    await waitFor(() => expect(screen.getByLabelText('文件夹城市地图')).not.toHaveAttribute('viewBox', '0 0 960 640'));
+    expect(addEventListener).toHaveBeenCalledWith('resize', expect.any(Function));
+  } finally {
+    vi.stubGlobal('ResizeObserver', originalResizeObserver);
+    bounds.mockRestore();
+    addEventListener.mockRestore();
+  }
+});
+
+test('uses fit flight only when reduced motion is not requested', async () => {
+  const originalMatchMedia = window.matchMedia;
+  const matchMedia = vi.fn().mockReturnValue({ matches: false });
+  vi.stubGlobal('matchMedia', matchMedia);
+
+  try {
+    const { unmount } = render(
+      <CityMap
+        buildings={buildings}
+        selectedPath={null}
+        activeDistrictKey={null}
+        onDistrictChange={vi.fn()}
+        onSelect={vi.fn()}
+        onClearSelection={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByLabelText('文件夹城市地图')).toHaveClass('city-map__viewport--flight'));
+    unmount();
+
+    matchMedia.mockReturnValue({ matches: true });
+    renderMap();
+    await waitFor(() => expect(screen.getByLabelText('文件夹城市地图')).not.toHaveAttribute('viewBox', '0 0 960 640'));
+    expect(screen.getByLabelText('文件夹城市地图')).not.toHaveClass('city-map__viewport--flight');
+  } finally {
+    vi.stubGlobal('matchMedia', originalMatchMedia);
+  }
 });
 
 test('zooms the map from its calculated initial viewBox', async () => {

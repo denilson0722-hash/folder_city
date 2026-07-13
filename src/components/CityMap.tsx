@@ -27,8 +27,8 @@ interface CityMapProps {
   selectedPath: string | null;
   onSelect: (building: CityBuilding) => void;
   onClearSelection: () => void;
-  activeDistrictKey?: string | null;
-  onDistrictChange?: (districtKey: string | null) => void;
+  activeDistrictKey: string | null;
+  onDistrictChange: (districtKey: string | null) => void;
 }
 
 const INITIAL_VIEW_BOX: ViewBox = { x: 0, y: 0, width: 960, height: 640 };
@@ -74,8 +74,8 @@ export function CityMap({
   selectedPath,
   onSelect,
   onClearSelection,
-  activeDistrictKey = null,
-  onDistrictChange = () => undefined,
+  activeDistrictKey,
+  onDistrictChange,
 }: CityMapProps) {
   const [level, setLevel] = useState<CityLevel>(activeDistrictKey === null ? 'city' : 'district');
   const [viewBox, setViewBox] = useState<ViewBox>(INITIAL_VIEW_BOX);

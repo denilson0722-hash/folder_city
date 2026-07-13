@@ -76,6 +76,18 @@ describe('presentationFor city thresholds', () => {
     );
   });
 
+  test('switches to representatives at exactly 181 files without losing a source', () => {
+    const presentation = presentationFor(makeBuildings(181), { level: 'city', districtKey: null });
+    const representedCount = presentation.items.reduce((sum, item) => (
+      sum + (item.kind === 'building' ? 1 : item.count)
+    ), 0);
+
+    expect(presentation.items.length).toBeLessThan(181);
+    expect(presentation.items.some((item) => item.kind === 'cluster')).toBe(true);
+    expect(representedCount).toBe(181);
+    expect(presentation.sourceCount).toBe(181);
+  });
+
   test('caps representatives at 24 per district at the 600-file boundary', () => {
     const presentation = presentationFor(makeBuildings(600), { level: 'city', districtKey: null });
 
@@ -154,9 +166,28 @@ describe('district and building levels', () => {
     expect(presentation.sourceCount).toBe(0);
     expect(presentation.contentBounds).toBeNull();
   });
+
+  test('returns an empty building-level presentation for an unknown district key', () => {
+    const presentation = presentationFor(makeBuildings(20), {
+      level: 'building',
+      districtKey: 'missing:building:1',
+    });
+
+    expect(presentation).toMatchObject({ items: [], contentBounds: null, sourceCount: 0 });
+  });
 });
 
 describe('visual bounds', () => {
+  test('widens a compact district so its title and count badge remain inside the fitted bounds', () => {
+    const building = makeBuildings(1)[0];
+    building.districtLabel = '代码街区 · exceptionally-long-source-directory · 深度 1';
+    const presentation = presentationFor([building], { level: 'city', districtKey: null });
+    const district = presentation.districts[0];
+
+    expect(district.bounds.maxX - district.bounds.minX).toBeGreaterThanOrEqual(430);
+    expect(presentation.contentBounds).toEqual(district.bounds);
+  });
+
   test('includes roof, shadow and title extents in content bounds', () => {
     const building = makeBuildings(1)[0];
     building.x = 100;
@@ -167,7 +198,7 @@ describe('visual bounds', () => {
     const item = presentation.items[0];
 
     expect(item.bounds).toEqual({ minX: 100, minY: 190, maxX: 166, maxY: 252 });
-    expect(presentation.districts[0].bounds).toEqual({ minX: 76, minY: 132, maxX: 190, maxY: 276 });
+    expect(presentation.districts[0].bounds).toEqual({ minX: 76, minY: 132, maxX: 338, maxY: 276 });
     expect(presentation.contentBounds).toEqual(presentation.districts[0].bounds);
   });
 

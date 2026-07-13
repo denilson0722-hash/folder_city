@@ -81,3 +81,16 @@ test('selects a glyph with pointer, Enter and Space and reports selected state',
   expect(onSelect).toHaveBeenCalledTimes(3);
   expect(onSelect).toHaveBeenNthCalledWith(1, fileItem);
 });
+
+test.each([
+  { height: 43, expected: false },
+  { height: 44, expected: true },
+] as const)('renders windows=$expected at the $height-pixel height boundary', ({ height, expected }) => {
+  const boundaryBuilding = { ...building, height };
+  const boundaryItem: CityVisualItem = { ...fileItem, building: boundaryBuilding };
+  const { container } = render(
+    <svg><BuildingGlyph item={boundaryItem} selected={false} onSelect={vi.fn()} /></svg>,
+  );
+
+  expect(container.querySelector('[data-windows]') !== null).toBe(expected);
+});

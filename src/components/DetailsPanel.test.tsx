@@ -27,12 +27,20 @@ test('shows the selected image path and story, then closes', async () => {
   const user = userEvent.setup();
   const onClose = vi.fn();
 
-  render(<DetailsPanel building={imageBuilding} onClose={onClose} />);
+  render(<DetailsPanel building={imageBuilding} layout="sidebar" onClose={onClose} />);
 
   expect(screen.getByLabelText('文件详情')).toHaveTextContent('assets/design.png');
+  expect(screen.getByLabelText('文件详情')).toHaveAttribute('data-layout', 'sidebar');
   expect(screen.getByLabelText('文件详情')).toHaveTextContent('“design.png”属于图像街区');
 
   await user.click(screen.getByRole('button', { name: '关闭详情' }));
 
   expect(onClose).toHaveBeenCalledOnce();
+});
+
+test('uses drawer presentation without changing story content', () => {
+  render(<DetailsPanel building={imageBuilding} layout="drawer" onClose={vi.fn()} />);
+
+  expect(screen.getByLabelText('文件详情')).toHaveAttribute('data-layout', 'drawer');
+  expect(screen.getByLabelText('文件详情')).toHaveTextContent('“design.png”属于图像街区');
 });
