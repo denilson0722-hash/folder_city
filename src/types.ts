@@ -38,3 +38,22 @@ export interface CitySummary {
   largestFile: CityBuilding | null;
   categoryCounts: Record<FileCategory, number>;
 }
+
+export interface Bounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export interface ViewportSize {
+  width: number;
+  height: number;
+}
+
+export interface ViewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
