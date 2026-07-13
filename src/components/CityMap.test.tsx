@@ -104,6 +104,15 @@ test('zooms the map from its exact initial viewBox', () => {
   expect(map).not.toHaveAttribute('viewBox', '0 0 960 640');
 });
 
+test('registers its wheel listener as non-passive so the page does not scroll while zooming', () => {
+  const addEventListener = vi.spyOn(SVGSVGElement.prototype, 'addEventListener');
+
+  renderMap();
+
+  expect(addEventListener).toHaveBeenCalledWith('wheel', expect.any(Function), { passive: false });
+  addEventListener.mockRestore();
+});
+
 test('pans by the pointer delta and exposes category and freshness visuals', () => {
   renderMap();
   const map = screen.getByLabelText('文件夹城市地图');

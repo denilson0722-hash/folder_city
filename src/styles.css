@@ -1,0 +1,149 @@
+:root {
+  color: #f4f8ff;
+  background: #06142c;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 15% 8%, rgba(41, 111, 255, 0.24), transparent 30rem),
+    radial-gradient(circle at 88% 3%, rgba(73, 219, 255, 0.15), transparent 24rem),
+    #06142c;
+}
+
+button,
+select { font: inherit; }
+
+button,
+select {
+  border: 1px solid #7de7ff;
+  border-radius: 0.45rem;
+  color: #f4f8ff;
+  background: #102954;
+}
+
+button {
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+}
+
+button:hover { background: #173a73; }
+
+button:focus-visible,
+select:focus-visible,
+.city-building:focus-visible rect {
+  outline: 3px solid #fff28a;
+  outline-offset: 3px;
+}
+
+.folder-city {
+  width: min(100% - 2rem, 1280px);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 4vw, 3.5rem) 0;
+}
+
+.app-header { max-width: 46rem; margin-bottom: 1.5rem; }
+
+.app-header h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(2.6rem, 8vw, 5.4rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+
+.app-header > p:last-child { max-width: 38rem; color: #c6d7f7; font-size: 1.08rem; line-height: 1.65; }
+
+.eyebrow { margin: 0 0 0.7rem; color: #7de7ff; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.16em; }
+
+.state-card,
+[aria-label="文件夹控制"],
+[aria-label="扫描统计"],
+[aria-label="文件详情"] {
+  border: 1px solid rgba(125, 231, 255, 0.46);
+  border-radius: 0.85rem;
+  background: rgba(9, 32, 70, 0.86);
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.22);
+}
+
+.state-card { padding: clamp(1.25rem, 4vw, 2.25rem); }
+.state-card h2 { margin-top: 0; color: #ffffff; }
+.state-card p { color: #d7e3f9; line-height: 1.65; }
+.state-card--error { border-color: #ff8b8b; }
+.state-card--empty { border-color: #f2cc60; }
+
+[aria-label="文件夹控制"] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+[aria-label="文件夹控制"] label { display: grid; gap: 0.35rem; color: #c6d7f7; font-size: 0.88rem; }
+[aria-label="文件夹控制"] select { min-width: 0; padding: 0.55rem; }
+[aria-label="文件夹控制"] p { grid-column: 1 / -1; margin: 0.25rem 0 0; color: #9fb8e6; font-size: 0.88rem; }
+
+.city-toolbar { display: grid; grid-template-columns: minmax(18rem, 0.9fr) minmax(17rem, 1.1fr); gap: 1rem; margin-bottom: 1rem; }
+
+[aria-label="扫描统计"] { padding: 0.75rem 1rem; color: #d7e3f9; }
+[aria-label="扫描统计"] p { margin: 0.35rem 0; }
+
+.city-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.32fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+[aria-label="文件夹城市地图"] {
+  width: 100%;
+  min-height: min(62vh, 42rem);
+  border: 1px solid rgba(125, 231, 255, 0.6);
+  border-radius: 0.85rem;
+  background:
+    linear-gradient(rgba(125, 231, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 231, 255, 0.07) 1px, transparent 1px),
+    #081c40;
+  background-size: 40px 40px;
+  touch-action: none;
+}
+
+.city-building { cursor: pointer; }
+.city-building rect { transition: stroke-width 140ms ease, filter 140ms ease; }
+.city-building:hover rect { filter: brightness(1.2); }
+.city-building--recent rect { stroke-dasharray: none; }
+.city-building--current rect { stroke-dasharray: 5 2; }
+.city-building--aged rect { stroke-dasharray: 2 3; }
+
+[aria-label="文件详情"] { padding: 1rem; }
+[aria-label="文件详情"] h2 { margin-top: 0; }
+[aria-label="文件详情"] dl { display: grid; gap: 0.3rem; }
+[aria-label="文件详情"] dt { color: #7de7ff; font-weight: 700; }
+[aria-label="文件详情"] dd { margin: 0 0 0.8rem; overflow-wrap: anywhere; color: #d7e3f9; }
+
+.filtered-empty {
+  display: grid;
+  min-height: 18rem;
+  margin: 0;
+  place-items: center;
+  border: 1px dashed #f2cc60;
+  border-radius: 0.85rem;
+  color: #fff0a6;
+}
+
+@media (max-width: 760px) {
+  .folder-city { width: min(100% - 1.25rem, 1280px); }
+  .city-toolbar,
+  .city-stage { grid-template-columns: 1fr; }
+  [aria-label="文件夹城市地图"] { min-height: 26rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}

@@ -1,9 +1,9 @@
 import {
+  useEffect,
   useRef,
   useState,
   type KeyboardEvent,
   type PointerEvent,
-  type WheelEvent,
 } from 'react';
 
 import type { CityBuilding, FileCategory, Freshness } from '../types';
@@ -52,20 +52,31 @@ function viewBoxValue({ x, y, width, height }: ViewBox): string {
 
 export function CityMap({ buildings, selectedPath, onSelect, onClearSelection }: CityMapProps) {
   const [viewBox, setViewBox] = useState(INITIAL_VIEW_BOX);
+  const mapRef = useRef<SVGSVGElement>(null);
   const activePointer = useRef<{ id: number; x: number; y: number } | null>(null);
 
-  function handleWheel(event: WheelEvent<SVGSVGElement>) {
-    event.preventDefault();
-    const scale = event.deltaY < 0 ? 0.9 : 1.1;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null) {
+      return undefined;
+    }
 
-    setViewBox((current) => {
-      const width = clamp(current.width * scale, MIN_VIEW_BOX_WIDTH, MAX_VIEW_BOX_WIDTH);
-      const height = width / VIEW_BOX_ASPECT_RATIO;
-      const x = current.x + (current.width - width) / 2;
-      const y = current.y + (current.height - height) / 2;
-      return { x, y, width, height };
-    });
-  }
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const scale = event.deltaY < 0 ? 0.9 : 1.1;
+
+      setViewBox((current) => {
+        const width = clamp(current.width * scale, MIN_VIEW_BOX_WIDTH, MAX_VIEW_BOX_WIDTH);
+        const height = width / VIEW_BOX_ASPECT_RATIO;
+        const x = current.x + (current.width - width) / 2;
+        const y = current.y + (current.height - height) / 2;
+        return { x, y, width, height };
+      });
+    };
+
+    map.addEventListener('wheel', handleWheel, { passive: false });
+    return () => map.removeEventListener('wheel', handleWheel);
+  }, []);
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
     if (event.button !== 0) {
@@ -102,6 +113,7 @@ export function CityMap({ buildings, selectedPath, onSelect, onClearSelection }:
 
   return (
     <svg
+      ref={mapRef}
       aria-label="文件夹城市地图"
       viewBox={viewBoxValue(viewBox)}
       onClick={(event) => {
@@ -114,7 +126,6 @@ export function CityMap({ buildings, selectedPath, onSelect, onClearSelection }:
           onClearSelection();
         }
       }}
-      onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
