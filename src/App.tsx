@@ -62,7 +62,7 @@ export default function App() {
     );
   }
 
-  if (!directoryPickerSupported && status === 'error') {
+  if (!directoryPickerSupported) {
     return (
       <main className="folder-city">
         <AppHeader />

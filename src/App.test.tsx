@@ -3,7 +3,8 @@ import { beforeEach, expect, test, vi } from 'vitest';
 
 import App from './App';
 
-const { mockUseFolderScan } = vi.hoisted(() => ({
+const { mockIsDirectoryPickerSupported, mockUseFolderScan } = vi.hoisted(() => ({
+  mockIsDirectoryPickerSupported: vi.fn(),
   mockUseFolderScan: vi.fn(),
 }));
 
@@ -11,7 +12,17 @@ vi.mock('./hooks/useFolderScan', () => ({
   useFolderScan: mockUseFolderScan,
 }));
 
+vi.mock('./lib/fileSystem', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./lib/fileSystem')>();
+
+  return {
+    ...original,
+    isDirectoryPickerSupported: mockIsDirectoryPickerSupported,
+  };
+});
+
 beforeEach(() => {
+  mockIsDirectoryPickerSupported.mockReturnValue(true);
   mockUseFolderScan.mockReturnValue({
     status: 'idle',
     result: null,
@@ -25,6 +36,15 @@ beforeEach(() => {
 test('shows the Folder City title', () => {
   render(<App />);
   expect(screen.getByRole('heading', { name: '文件夹城市' })).toBeInTheDocument();
+});
+
+test('shows the unsupported-browser state immediately when directory picking is unavailable', () => {
+  mockIsDirectoryPickerSupported.mockReturnValue(false);
+
+  render(<App />);
+
+  expect(screen.getByRole('heading', { name: '当前浏览器不支持选择文件夹' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '选择文件夹' })).not.toBeInTheDocument();
 });
 
 test('explains the metadata-only privacy boundary before scanning', () => {
