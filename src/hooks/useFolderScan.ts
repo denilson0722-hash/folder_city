@@ -11,6 +11,7 @@ export interface FolderScanState {
   status: FolderScanStatus;
   result: ScanResult | null;
   error: string | null;
+  scannedCount: number;
   pickFolder: () => Promise<void>;
   reset: () => void;
 }
@@ -23,11 +24,13 @@ export function useFolderScan(): FolderScanState {
   const [status, setStatus] = useState<FolderScanStatus>('idle');
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scannedCount, setScannedCount] = useState(0);
 
   const reset = useCallback(() => {
     setStatus('idle');
     setResult(null);
     setError(null);
+    setScannedCount(0);
   }, []);
 
   const pickFolder = useCallback(async () => {
@@ -42,10 +45,11 @@ export function useFolderScan(): FolderScanState {
     setStatus('scanning');
     setResult(null);
     setError(null);
+    setScannedCount(0);
 
     try {
       const handle = await pickDirectory();
-      const nextResult = await scanDirectory(handle, () => undefined);
+      const nextResult = await scanDirectory(handle, setScannedCount);
       setResult(nextResult);
       setStatus('success');
     } catch (caughtError) {
@@ -58,5 +62,5 @@ export function useFolderScan(): FolderScanState {
     }
   }, []);
 
-  return { status, result, error, pickFolder, reset };
+  return { status, result, error, scannedCount, pickFolder, reset };
 }
