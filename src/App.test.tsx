@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import App from './App';
@@ -71,4 +72,31 @@ test('explains when a successfully scanned folder has no files to build', () => 
   render(<App />);
 
   expect(screen.getByText('这个文件夹还没有可建造的文件。')).toBeInTheDocument();
+});
+
+test('updates the type distribution to match the active category filter', async () => {
+  const user = userEvent.setup();
+  mockUseFolderScan.mockReturnValue({
+    status: 'success',
+    result: {
+      entries: [
+        { name: 'guide.txt', relativePath: 'docs/guide.txt', size: 1, lastModified: new Date('2026-07-13T00:00:00Z'), type: 'text/plain' },
+        { name: 'photo.jpg', relativePath: 'images/photo.jpg', size: 1, lastModified: new Date('2026-07-13T00:00:00Z'), type: 'image/jpeg' },
+      ],
+      skippedCount: 0,
+      wasTruncated: false,
+      scannedAt: new Date('2026-07-13T00:00:00Z'),
+    },
+    error: null,
+    scannedCount: 0,
+    pickFolder: vi.fn(),
+    reset: vi.fn(),
+  });
+
+  render(<App />);
+  await user.selectOptions(screen.getByLabelText('文件类型'), 'image');
+
+  const distribution = screen.getByLabelText('当前筛选结果按类型分布');
+  expect(distribution).toHaveTextContent('文档：0');
+  expect(distribution).toHaveTextContent('图像：1');
 });

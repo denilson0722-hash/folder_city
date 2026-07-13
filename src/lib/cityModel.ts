@@ -17,6 +17,7 @@ const DISTRICT_X_START = 72;
 const DISTRICT_X_STEP = 500;
 const DISTRICT_Y = 300;
 const ROW_STEP = 220;
+const DISTRICT_GAP = 80;
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 
 const CATEGORY_EXTENSIONS: Record<FileCategory, readonly string[]> = {
@@ -69,6 +70,76 @@ function formatBytes(bytes: number): string {
   return `${formatted} ${units[unitIndex]}`;
 }
 
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+interface DirectoryContext {
+  firstLevelDirectory: string;
+  directoryDepth: number;
+}
+
+interface CityEntry {
+  entry: FileEntry;
+  category: FileCategory;
+  context: DirectoryContext;
+  districtKey: string;
+}
+
+interface Placement {
+  x: number;
+  y: number;
+}
+
+function directoryContextFor(relativePath: string): DirectoryContext {
+  const directories = relativePath.split('/').filter(Boolean).slice(0, -1);
+  return {
+    firstLevelDirectory: directories[0] ?? '根目录',
+    directoryDepth: directories.length,
+  };
+}
+
+function districtKeyFor(category: FileCategory, context: DirectoryContext): string {
+  return `${category}:${context.firstLevelDirectory}:${context.directoryDepth}`;
+}
+
+function layoutDistricts(entries: readonly CityEntry[]): Map<string, Placement> {
+  const placements = new Map<string, Placement>();
+
+  for (const category of FILE_CATEGORIES) {
+    const categoryEntries = entries.filter((entry) => entry.category === category);
+    const districts = new Map<string, CityEntry[]>();
+    for (const entry of categoryEntries) {
+      const members = districts.get(entry.districtKey) ?? [];
+      members.push(entry);
+      districts.set(entry.districtKey, members);
+    }
+
+    const categoryIndex = FILE_CATEGORIES.indexOf(category);
+    const districtX = DISTRICT_X_START + categoryIndex * DISTRICT_X_STEP;
+    let districtBaseline = DISTRICT_Y;
+    const orderedDistricts = [...districts.values()].sort((left, right) => (
+      compareText(left[0].context.firstLevelDirectory, right[0].context.firstLevelDirectory)
+      || left[0].context.directoryDepth - right[0].context.directoryDepth
+    ));
+
+    for (const district of orderedDistricts) {
+      district.forEach((cityEntry, index) => {
+        const height = heightForBytes(cityEntry.entry.size);
+        const column = index % BUILDINGS_PER_ROW;
+        const row = Math.floor(index / BUILDINGS_PER_ROW);
+        placements.set(cityEntry.entry.relativePath, {
+          x: districtX + column * (BUILDING_WIDTH + BUILDING_GAP),
+          y: districtBaseline + row * ROW_STEP - height,
+        });
+      });
+      districtBaseline += Math.ceil(district.length / BUILDINGS_PER_ROW) * ROW_STEP + DISTRICT_GAP;
+    }
+  }
+
+  return placements;
+}
+
 export function classifyFile(name: string): FileCategory {
   const extension = extensionFor(name);
   return extension ? extensionCategories.get(extension) ?? 'other' : 'other';
@@ -92,35 +163,29 @@ export function freshnessFor(modified: Date, now: Date): Freshness {
 
 export function buildCity(entries: readonly FileEntry[], now: Date): CityBuilding[] {
   const sortedEntries = [...entries].sort((left, right) => (
-    left.relativePath < right.relativePath ? -1 : left.relativePath > right.relativePath ? 1 : 0
+    compareText(left.relativePath, right.relativePath)
   ));
-  const categoryIndices: Record<FileCategory, number> = {
-    document: 0,
-    image: 0,
-    media: 0,
-    code: 0,
-    archive: 0,
-    other: 0,
-  };
-
-  return sortedEntries.map((entry) => {
+  const cityEntries = sortedEntries.map((entry) => {
     const category = classifyFile(entry.name);
-    const categoryIndex = FILE_CATEGORIES.indexOf(category);
-    const indexInDistrict = categoryIndices[category]++;
-    const height = heightForBytes(entry.size);
-    const column = indexInDistrict % BUILDINGS_PER_ROW;
-    const row = Math.floor(indexInDistrict / BUILDINGS_PER_ROW);
-    const districtX = DISTRICT_X_START + categoryIndex * DISTRICT_X_STEP;
+    const context = directoryContextFor(entry.relativePath);
+    return { entry, category, context, districtKey: districtKeyFor(category, context) };
+  });
+  const placements = layoutDistricts(cityEntries);
 
+  return cityEntries.map(({ entry, category, context, districtKey }) => {
+    const placement = placements.get(entry.relativePath)!;
     return {
       ...entry,
       category,
       freshness: freshnessFor(entry.lastModified, now),
-      height,
-      x: districtX + column * (BUILDING_WIDTH + BUILDING_GAP),
-      y: DISTRICT_Y + row * ROW_STEP - height,
+      districtKey,
+      firstLevelDirectory: context.firstLevelDirectory,
+      directoryDepth: context.directoryDepth,
+      height: heightForBytes(entry.size),
+      x: placement.x,
+      y: placement.y,
       width: BUILDING_WIDTH,
-      districtLabel: DISTRICT_LABELS[category],
+      districtLabel: `${DISTRICT_LABELS[category]} · ${context.firstLevelDirectory} · 深度 ${context.directoryDepth}`,
     };
   });
 }

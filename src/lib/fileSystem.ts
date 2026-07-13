@@ -28,7 +28,11 @@ export async function scanDirectory(
     onProgress(scannedCount);
   };
 
-  const visitDirectory = async (directory: FileSystemDirectoryHandle, pathPrefix: string): Promise<void> => {
+  const visitDirectory = async (
+    directory: FileSystemDirectoryHandle,
+    pathPrefix: string,
+    isRootDirectory = false,
+  ): Promise<void> => {
     try {
       for await (const child of directory.values()) {
         try {
@@ -56,11 +60,14 @@ export async function scanDirectory(
         }
       }
     } catch {
+      if (isRootDirectory) {
+        throw new Error('无法读取所选文件夹，请检查权限后重试。');
+      }
       skippedCount += 1;
     }
   };
 
-  await visitDirectory(handle, '');
+  await visitDirectory(handle, '', true);
   entries.sort((left, right) => (
     right.lastModified.getTime() - left.lastModified.getTime()
     || left.relativePath.localeCompare(right.relativePath)

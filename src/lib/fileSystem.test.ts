@@ -30,6 +30,16 @@ function directoryHandle(name: string, entries: FileSystemHandle[]): FileSystemD
   } as unknown as FileSystemDirectoryHandle;
 }
 
+function unreadableDirectoryHandle(name: string): FileSystemDirectoryHandle {
+  return {
+    kind: 'directory',
+    name,
+    async *values() {
+      throw new DOMException('Permission denied', 'NotAllowedError');
+    },
+  } as unknown as FileSystemDirectoryHandle;
+}
+
 const originalShowDirectoryPicker = Object.getOwnPropertyDescriptor(window, 'showDirectoryPicker');
 
 afterEach(() => {
@@ -104,6 +114,11 @@ describe('scanDirectory', () => {
     expect(result.entries[0].name).toBe('file-1000.txt');
     expect(result.entries[result.entries.length - 1]?.name).toBe('file-1.txt');
     expect(result.wasTruncated).toBe(true);
+  });
+
+  it('throws a user-facing error when the selected root directory cannot be iterated', async () => {
+    await expect(scanDirectory(unreadableDirectoryHandle('root'), vi.fn()))
+      .rejects.toThrow('无法读取所选文件夹，请检查权限后重试。');
   });
 });
 

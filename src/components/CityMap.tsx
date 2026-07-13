@@ -6,7 +6,7 @@ import {
   type PointerEvent,
 } from 'react';
 
-import type { CityBuilding, FileCategory, Freshness } from '../types';
+import { FILE_CATEGORIES, type CityBuilding, type FileCategory, type Freshness } from '../types';
 
 interface CityMapProps {
   buildings: readonly CityBuilding[];
@@ -36,11 +36,32 @@ const CATEGORY_COLORS: Record<FileCategory, string> = {
   other: '#8b949e',
 };
 
-const FRESHNESS_OPACITY: Record<Freshness, number> = {
-  recent: 1,
-  current: 0.72,
-  aged: 0.42,
+const CATEGORY_LABELS: Record<FileCategory, string> = {
+  document: '文档街区',
+  image: '图像街区',
+  media: '媒体街区',
+  code: '代码街区',
+  archive: '压缩街区',
+  other: '其他街区',
 };
+
+const FRESHNESS_STYLES: Record<Freshness, { brightness: number; patternId: string; stroke: string }> = {
+  recent: { brightness: 1.16, patternId: 'freshness-recent', stroke: '#edf7ff' },
+  current: { brightness: 0.9, patternId: 'freshness-current', stroke: '#d7e3f9' },
+  aged: { brightness: 0.68, patternId: 'freshness-aged', stroke: '#a7b6d3' },
+};
+
+interface District {
+  key: string;
+  category: FileCategory;
+  label: string;
+  firstLevelDirectory: string;
+  directoryDepth: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -50,10 +71,40 @@ function viewBoxValue({ x, y, width, height }: ViewBox): string {
   return `${x} ${y} ${width} ${height}`;
 }
 
+function districtsFor(buildings: readonly CityBuilding[]): District[] {
+  const groups = new Map<string, CityBuilding[]>();
+  for (const building of buildings) {
+    const district = groups.get(building.districtKey) ?? [];
+    district.push(building);
+    groups.set(building.districtKey, district);
+  }
+
+  return [...groups.entries()].map(([key, districtBuildings]) => {
+    const first = districtBuildings[0];
+    const minimumX = Math.min(...districtBuildings.map((building) => building.x));
+    const minimumY = Math.min(...districtBuildings.map((building) => building.y));
+    const maximumX = Math.max(...districtBuildings.map((building) => building.x + building.width));
+    const maximumY = Math.max(...districtBuildings.map((building) => building.y + building.height));
+    return {
+      key,
+      category: first.category,
+      label: first.districtLabel,
+      firstLevelDirectory: first.firstLevelDirectory,
+      directoryDepth: first.directoryDepth,
+      x: minimumX - 24,
+      y: minimumY - 68,
+      width: maximumX - minimumX + 48,
+      height: maximumY - minimumY + 92,
+    };
+  });
+}
+
 export function CityMap({ buildings, selectedPath, onSelect, onClearSelection }: CityMapProps) {
   const [viewBox, setViewBox] = useState(INITIAL_VIEW_BOX);
   const mapRef = useRef<SVGSVGElement>(null);
   const activePointer = useRef<{ id: number; x: number; y: number } | null>(null);
+  const districts = districtsFor(buildings);
+  const categories = FILE_CATEGORIES.filter((category) => buildings.some((building) => building.category === category));
 
   useEffect(() => {
     const map = mapRef.current;
@@ -112,7 +163,8 @@ export function CityMap({ buildings, selectedPath, onSelect, onClearSelection }:
   }
 
   return (
-    <svg
+    <section className="city-map">
+      <svg
       ref={mapRef}
       aria-label="文件夹城市地图"
       viewBox={viewBoxValue(viewBox)}
@@ -130,9 +182,36 @@ export function CityMap({ buildings, selectedPath, onSelect, onClearSelection }:
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
-    >
+      >
+        <defs>
+          <pattern id="freshness-recent" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <path d="M 0 0 L 0 8" stroke="#ffffff" strokeWidth="2" />
+          </pattern>
+          <pattern id="freshness-current" width="8" height="8" patternUnits="userSpaceOnUse">
+            <path d="M 0 4 L 8 4" stroke="#ffffff" strokeWidth="2" />
+          </pattern>
+          <pattern id="freshness-aged" width="8" height="8" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.5" fill="#ffffff" />
+            <circle cx="6" cy="6" r="1.5" fill="#ffffff" />
+          </pattern>
+        </defs>
+        <g aria-hidden="true" className="city-districts">
+          {districts.map((district) => (
+            <g key={district.key} className={`city-district city-district--${district.category}`}>
+              <rect x={district.x} y={district.y} width={district.width} height={district.height} rx="16" />
+              <text x={district.x + 12} y={district.y + 24}>{district.firstLevelDirectory} · 深度 {district.directoryDepth}</text>
+            </g>
+          ))}
+          {categories.map((category) => {
+            const categoryDistricts = districts.filter((district) => district.category === category);
+            const categoryX = Math.min(...categoryDistricts.map((district) => district.x));
+            const categoryY = Math.min(...categoryDistricts.map((district) => district.y));
+            return <text key={category} className="city-category-label" x={categoryX} y={categoryY - 16}>{CATEGORY_LABELS[category]}</text>;
+          })}
+        </g>
       {buildings.map((building) => {
         const isSelected = building.relativePath === selectedPath;
+        const freshnessStyle = FRESHNESS_STYLES[building.freshness];
         return (
           <g
             key={building.relativePath}
@@ -154,13 +233,32 @@ export function CityMap({ buildings, selectedPath, onSelect, onClearSelection }:
               width={building.width}
               height={building.height}
               fill={CATEGORY_COLORS[building.category]}
-              opacity={FRESHNESS_OPACITY[building.freshness]}
-              stroke={isSelected ? '#ffffff' : 'transparent'}
-              strokeWidth={isSelected ? 3 : 0}
+              style={{ filter: `brightness(${freshnessStyle.brightness})` }}
+              stroke={isSelected ? '#ffffff' : freshnessStyle.stroke}
+              strokeWidth={isSelected ? 3 : 1.5}
+            />
+            <rect
+              data-freshness-texture
+              x={building.x}
+              y={building.y}
+              width={building.width}
+              height={building.height}
+              fill={`url(#${freshnessStyle.patternId})`}
+              pointerEvents="none"
             />
           </g>
         );
       })}
-    </svg>
+      </svg>
+      <aside className="city-map__legend" aria-label="类型图例">
+        <strong>类型图例</strong>
+        <ul>
+          {FILE_CATEGORIES.map((category) => (
+            <li key={category}><span className="city-map__swatch" style={{ backgroundColor: CATEGORY_COLORS[category] }} />{CATEGORY_LABELS[category]}</li>
+          ))}
+        </ul>
+        <p>颜色表示文件类型；明暗与纹理表示新旧：近期较亮斜线、常用中等亮度横线、较旧较暗点纹。</p>
+      </aside>
+    </section>
   );
 }

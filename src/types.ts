@@ -22,6 +22,9 @@ export interface FileEntry {
 export interface CityBuilding extends FileEntry {
   category: FileCategory;
   freshness: Freshness;
+  districtKey: string;
+  firstLevelDirectory: string;
+  directoryDepth: number;
   height: number;
   x: number;
   y: number;

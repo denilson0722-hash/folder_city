@@ -24,6 +24,9 @@ const buildings: CityBuilding[] = [
     type: 'application/pdf',
     category: 'document',
     freshness: 'recent',
+    districtKey: 'document:docs:1',
+    firstLevelDirectory: 'docs',
+    directoryDepth: 1,
     height: 72,
     x: 72,
     y: 228,
@@ -38,6 +41,9 @@ const buildings: CityBuilding[] = [
     type: 'image/jpeg',
     category: 'image',
     freshness: 'aged',
+    districtKey: 'image:images:1',
+    firstLevelDirectory: 'images',
+    directoryDepth: 1,
     height: 96,
     x: 144,
     y: 204,
@@ -66,6 +72,16 @@ test('renders every file as a named SVG button', () => {
 
   expect(screen.getByRole('button', { name: /plan\.pdf/ })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /photo\.jpg/ })).toBeInTheDocument();
+});
+
+test('renders visible category and district labels plus an explanatory type legend', () => {
+  renderMap();
+
+  expect(screen.getAllByText('文档街区')[0]).toBeVisible();
+  expect(screen.getAllByText('图像街区')[0]).toBeVisible();
+  expect(screen.getByText('docs · 深度 1')).toBeVisible();
+  expect(screen.getByLabelText('类型图例')).toHaveTextContent('文档');
+  expect(screen.getByLabelText('类型图例')).toHaveTextContent('颜色表示文件类型；明暗与纹理表示新旧');
 });
 
 test('selects a building with Enter and Space', async () => {
@@ -104,6 +120,28 @@ test('zooms the map from its exact initial viewBox', () => {
   expect(map).not.toHaveAttribute('viewBox', '0 0 960 640');
 });
 
+test('clamps wheel zoom to the supported viewBox range', () => {
+  renderMap();
+  const map = screen.getByLabelText('文件夹城市地图');
+
+  for (let index = 0; index < 20; index += 1) {
+    fireEvent.wheel(map, { deltaY: -1 });
+  }
+  expect(map).toHaveAttribute('viewBox', expect.stringMatching(/ 320 213\.33333333333334$/));
+
+  for (let index = 0; index < 30; index += 1) {
+    fireEvent.wheel(map, { deltaY: 1 });
+  }
+  expect(map).toHaveAttribute('viewBox', expect.stringMatching(/ 1920 1280$/));
+});
+
+test('reports selected state through aria-pressed', () => {
+  renderMap({ selectedPath: 'images/photo.jpg' });
+
+  expect(screen.getByRole('button', { name: /plan\.pdf/ })).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByRole('button', { name: /photo\.jpg/ })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('registers its wheel listener as non-passive so the page does not scroll while zooming', () => {
   const addEventListener = vi.spyOn(SVGSVGElement.prototype, 'addEventListener');
 
@@ -113,7 +151,7 @@ test('registers its wheel listener as non-passive so the page does not scroll wh
   addEventListener.mockRestore();
 });
 
-test('pans by the pointer delta and exposes category and freshness visuals', () => {
+test('pans by the pointer delta and uses opaque brightness plus pattern textures for freshness', () => {
   renderMap();
   const map = screen.getByLabelText('文件夹城市地图');
   const plan = screen.getByRole('button', { name: /plan\.pdf/ });
@@ -131,5 +169,10 @@ test('pans by the pointer delta and exposes category and freshness visuals', () 
   expect(plan).toHaveClass('city-building--document', 'city-building--recent');
   expect(photo).toHaveClass('city-building--image', 'city-building--aged');
   expect(plan.querySelector('rect')).not.toHaveAttribute('fill', photo.querySelector('rect')?.getAttribute('fill'));
-  expect(plan.querySelector('rect')).not.toHaveAttribute('opacity', photo.querySelector('rect')?.getAttribute('opacity'));
+  expect(plan.querySelector('rect')).not.toHaveAttribute('opacity');
+  expect(photo.querySelector('rect')).not.toHaveAttribute('opacity');
+  expect(plan.querySelector('[data-freshness-texture]')).toHaveAttribute('fill', 'url(#freshness-recent)');
+  expect(photo.querySelector('[data-freshness-texture]')).toHaveAttribute('fill', 'url(#freshness-aged)');
+  expect(plan.querySelector('rect')).toHaveStyle({ filter: 'brightness(1.16)' });
+  expect(photo.querySelector('rect')).toHaveStyle({ filter: 'brightness(0.68)' });
 });

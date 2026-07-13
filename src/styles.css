@@ -93,6 +93,9 @@ select:focus-visible,
 
 [aria-label="扫描统计"] { padding: 0.75rem 1rem; color: #d7e3f9; }
 [aria-label="扫描统计"] p { margin: 0.35rem 0; }
+[aria-label="当前筛选结果按类型分布"] { margin-top: 0.75rem; }
+[aria-label="当前筛选结果按类型分布"] ul { display: flex; flex-wrap: wrap; gap: 0.25rem 0.8rem; margin: 0.25rem 0 0; padding: 0; list-style: none; }
+[aria-label="当前筛选结果按类型分布"] li { color: #c6d7f7; font-size: 0.85rem; }
 
 .city-stage {
   display: grid;
@@ -113,6 +116,28 @@ select:focus-visible,
   background-size: 40px 40px;
   touch-action: none;
 }
+
+.city-map { min-width: 0; }
+
+.city-districts { pointer-events: none; }
+.city-district rect { fill: rgba(125, 231, 255, 0.06); stroke: rgba(125, 231, 255, 0.52); stroke-width: 1.5; stroke-dasharray: 7 5; }
+.city-district text { fill: #c6d7f7; font-size: 15px; font-weight: 700; }
+.city-category-label { fill: #ffffff; font-size: 22px; font-weight: 800; letter-spacing: 0.04em; }
+
+.city-map__legend {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(125, 231, 255, 0.46);
+  border-radius: 0.85rem;
+  color: #d7e3f9;
+  background: rgba(9, 32, 70, 0.86);
+}
+.city-map__legend ul { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; margin: 0; padding: 0; list-style: none; }
+.city-map__legend li { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.86rem; }
+.city-map__legend p { margin: 0; color: #c6d7f7; font-size: 0.85rem; line-height: 1.5; }
+.city-map__swatch { width: 0.85rem; height: 0.85rem; border: 1px solid #ffffff; border-radius: 0.18rem; }
 
 .city-building { cursor: pointer; }
 .city-building rect { transition: stroke-width 140ms ease, filter 140ms ease; }
