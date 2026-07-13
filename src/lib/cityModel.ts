@@ -91,7 +91,9 @@ export function freshnessFor(modified: Date, now: Date): Freshness {
 }
 
 export function buildCity(entries: readonly FileEntry[], now: Date): CityBuilding[] {
-  const sortedEntries = [...entries].sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+  const sortedEntries = [...entries].sort((left, right) => (
+    left.relativePath < right.relativePath ? -1 : left.relativePath > right.relativePath ? 1 : 0
+  ));
   const categoryIndices: Record<FileCategory, number> = {
     document: 0,
     image: 0,

@@ -85,6 +85,25 @@ test('builds a path-sorted, category-grid city with stable labels and positions'
   });
 });
 
+test('uses code-unit relative-path order for repeatable building coordinates', () => {
+  const entries = [
+    { name: 'Z.txt', relativePath: 'Z.txt', size: 0, lastModified: now, type: 'text/plain' },
+    { name: 'a.txt', relativePath: 'a.txt', size: 0, lastModified: now, type: 'text/plain' },
+    { name: 'á.txt', relativePath: 'á.txt', size: 0, lastModified: now, type: 'text/plain' },
+  ];
+
+  const firstBuild = buildCity(entries, now);
+  const secondBuild = buildCity(entries, now);
+
+  expect(firstBuild.map(({ relativePath }) => relativePath)).toEqual(['Z.txt', 'a.txt', 'á.txt']);
+  expect(firstBuild.map(({ relativePath, x, y }) => ({ relativePath, x, y }))).toEqual([
+    { relativePath: 'Z.txt', x: 72, y: 276 },
+    { relativePath: 'a.txt', x: 144, y: 276 },
+    { relativePath: 'á.txt', x: 216, y: 276 },
+  ]);
+  expect(secondBuild).toEqual(firstBuild);
+});
+
 test('creates a readable story with metadata and summarizes buildings', () => {
   const [building] = buildCity([
     { name: 'design.png', relativePath: 'assets/design.png', size: 2_516_582, lastModified: new Date('2026-07-01T00:00:00Z'), type: 'image/png' },
