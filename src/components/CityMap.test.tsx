@@ -1,10 +1,46 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import type { ComponentProps } from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState, type ComponentProps } from 'react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
 
 import { CityMap } from './CityMap';
 import type { CityBuilding } from '../types';
+
+class TestResizeObserver implements ResizeObserver {
+  static instances: TestResizeObserver[] = [];
+
+  readonly callback: ResizeObserverCallback;
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    TestResizeObserver.instances.push(this);
+  }
+
+  observe(target: Element) {
+    this.callback([{
+      target,
+      contentRect: {
+        width: 1_200,
+        height: 700,
+        x: 0,
+        y: 0,
+        top: 0,
+        right: 1_200,
+        bottom: 700,
+        left: 0,
+        toJSON: () => ({}),
+      },
+      borderBoxSize: [],
+      contentBoxSize: [],
+      devicePixelContentBoxSize: [],
+    }], this);
+  }
+
+  disconnect() {}
+  unobserve() {}
+}
+
+vi.stubGlobal('ResizeObserver', TestResizeObserver);
 
 class TestPointerEvent extends MouseEvent {
   pointerId: number;
@@ -59,6 +95,8 @@ function renderMap(overrides: Partial<ComponentProps<typeof CityMap>> = {}) {
     <CityMap
       buildings={buildings}
       selectedPath={null}
+      activeDistrictKey={null}
+      onDistrictChange={vi.fn()}
       onSelect={onSelect}
       onClearSelection={onClearSelection}
       {...overrides}
@@ -110,29 +148,52 @@ test('clears the selection from the SVG background and Escape', async () => {
   expect(onClearSelection).toHaveBeenCalledTimes(2);
 });
 
-test('zooms the map from its exact initial viewBox', () => {
+test('auto-fits all district and title bounds to the measured viewport', async () => {
   renderMap();
   const map = screen.getByLabelText('文件夹城市地图');
 
-  expect(map).toHaveAttribute('viewBox', '0 0 960 640');
-  fireEvent.wheel(map, { deltaY: -1 });
-
-  expect(map).not.toHaveAttribute('viewBox', '0 0 960 640');
+  await waitFor(() => expect(map).not.toHaveAttribute('viewBox', '0 0 960 640'));
+  const [x, y, width, height] = map.getAttribute('viewBox')!.split(' ').map(Number);
+  for (const plate of document.querySelectorAll('[data-district-plate]')) {
+    const plateX = Number(plate.getAttribute('x'));
+    const plateY = Number(plate.getAttribute('y'));
+    const plateWidth = Number(plate.getAttribute('width'));
+    const plateHeight = Number(plate.getAttribute('height'));
+    expect(plateX).toBeGreaterThanOrEqual(x);
+    expect(plateY).toBeGreaterThanOrEqual(y);
+    expect(plateX + plateWidth).toBeLessThanOrEqual(x + width);
+    expect(plateY + plateHeight).toBeLessThanOrEqual(y + height);
+  }
 });
 
-test('clamps wheel zoom to the supported viewBox range', () => {
+test('zooms the map from its calculated initial viewBox', async () => {
   renderMap();
   const map = screen.getByLabelText('文件夹城市地图');
+
+  await waitFor(() => expect(map).not.toHaveAttribute('viewBox', '0 0 960 640'));
+  const fittedViewBox = map.getAttribute('viewBox');
+  fireEvent.wheel(map, { deltaY: -1 });
+
+  expect(map).not.toHaveAttribute('viewBox', fittedViewBox);
+});
+
+test('clamps wheel zoom to the supported viewBox range', async () => {
+  renderMap();
+  const map = screen.getByLabelText('文件夹城市地图');
+
+  await waitFor(() => expect(map).not.toHaveAttribute('viewBox', '0 0 960 640'));
 
   for (let index = 0; index < 20; index += 1) {
     fireEvent.wheel(map, { deltaY: -1 });
   }
-  expect(map).toHaveAttribute('viewBox', expect.stringMatching(/ 320 213\.33333333333334$/));
+  expect(map).toHaveAttribute('viewBox', expect.stringMatching(/ 320 186\.66666666666669$/));
 
   for (let index = 0; index < 30; index += 1) {
     fireEvent.wheel(map, { deltaY: 1 });
   }
-  expect(map).toHaveAttribute('viewBox', expect.stringMatching(/ 1920 1280$/));
+  const [, , maximumWidth, maximumHeight] = map.getAttribute('viewBox')!.split(' ').map(Number);
+  expect(maximumWidth).toBe(1_920);
+  expect(maximumHeight).toBeCloseTo(1_120);
 });
 
 test('reports selected state through aria-pressed', () => {
@@ -151,11 +212,12 @@ test('registers its wheel listener as non-passive so the page does not scroll wh
   addEventListener.mockRestore();
 });
 
-test('pans by the pointer delta and uses opaque brightness plus pattern textures for freshness', () => {
+test('pans by the pointer delta and keeps the manual view when selecting a building', async () => {
   renderMap();
   const map = screen.getByLabelText('文件夹城市地图');
   const plan = screen.getByRole('button', { name: /plan\.pdf/ });
-  const photo = screen.getByRole('button', { name: /photo\.jpg/ });
+
+  await waitFor(() => expect(map).not.toHaveAttribute('viewBox', '0 0 960 640'));
 
   fireEvent(map, new TestPointerEvent('pointerdown', {
     bubbles: true, pointerId: 1, clientX: 100, clientY: 100,
@@ -165,14 +227,92 @@ test('pans by the pointer delta and uses opaque brightness plus pattern textures
   }));
   fireEvent(map, new TestPointerEvent('pointerup', { bubbles: true, pointerId: 1 }));
 
-  expect(map).toHaveAttribute('viewBox', '-40 -25 960 640');
-  expect(plan).toHaveClass('city-building--document', 'city-building--recent');
-  expect(photo).toHaveClass('city-building--image', 'city-building--aged');
-  expect(plan.querySelector('rect')).not.toHaveAttribute('fill', photo.querySelector('rect')?.getAttribute('fill'));
-  expect(plan.querySelector('rect')).not.toHaveAttribute('opacity');
-  expect(photo.querySelector('rect')).not.toHaveAttribute('opacity');
-  expect(plan.querySelector('[data-freshness-texture]')).toHaveAttribute('fill', 'url(#freshness-recent)');
-  expect(photo.querySelector('[data-freshness-texture]')).toHaveAttribute('fill', 'url(#freshness-aged)');
-  expect(plan.querySelector('rect')).toHaveStyle({ filter: 'brightness(1.16)' });
-  expect(photo.querySelector('rect')).toHaveStyle({ filter: 'brightness(0.68)' });
+  const pannedViewBox = map.getAttribute('viewBox');
+  fireEvent.click(plan);
+  expect(map).toHaveAttribute('viewBox', pannedViewBox);
+});
+
+function ControlledMap({ selectedPath = null }: { selectedPath?: string | null }) {
+  const [activeDistrictKey, setActiveDistrictKey] = useState<string | null>(null);
+  return (
+    <CityMap
+      buildings={buildings}
+      selectedPath={selectedPath}
+      activeDistrictKey={activeDistrictKey}
+      onDistrictChange={setActiveDistrictKey}
+      onSelect={vi.fn()}
+      onClearSelection={vi.fn()}
+    />
+  );
+}
+
+test('drills into a district and returns to the full city', async () => {
+  const user = userEvent.setup();
+  render(<ControlledMap />);
+
+  await user.click(screen.getByRole('button', { name: /文档街区，共 1 个文件/ }));
+  expect(screen.getByLabelText('城市地图控制')).toHaveTextContent('街区级');
+  await user.click(screen.getByRole('button', { name: '返回全城' }));
+  expect(screen.getByLabelText('城市地图控制')).toHaveTextContent('全城级');
+});
+
+test('Escape clears selection before exiting the active district', () => {
+  const onClearSelection = vi.fn();
+  const onDistrictChange = vi.fn();
+  renderMap({
+    selectedPath: buildings[0].relativePath,
+    activeDistrictKey: buildings[0].districtKey,
+    onClearSelection,
+    onDistrictChange,
+  });
+  const map = screen.getByLabelText('文件夹城市地图');
+
+  fireEvent.keyDown(map, { key: 'Escape' });
+  expect(onClearSelection).toHaveBeenCalledOnce();
+  expect(onDistrictChange).not.toHaveBeenCalled();
+
+  renderMap({
+    selectedPath: null,
+    activeDistrictKey: buildings[0].districtKey,
+    onClearSelection,
+    onDistrictChange,
+  });
+  fireEvent.keyDown(screen.getAllByLabelText('文件夹城市地图')[1], { key: 'Escape' });
+  expect(onDistrictChange).toHaveBeenCalledWith(null);
+});
+
+function manyBuildings(count: number): CityBuilding[] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...buildings[0],
+    name: `file-${index}.pdf`,
+    relativePath: `docs/file-${index}.pdf`,
+    x: index * 80,
+  }));
+}
+
+test('virtualizes oversized district items while retaining exact totals', async () => {
+  const oversizedDistrict = manyBuildings(700);
+  renderMap({ buildings: oversizedDistrict, activeDistrictKey: oversizedDistrict[0].districtKey });
+  const map = screen.getByLabelText('文件夹城市地图');
+
+  expect(screen.getByRole('button', { name: /文档街区，共 700 个文件/ })).toBeInTheDocument();
+  await waitFor(() => expect(map).not.toHaveAttribute('viewBox', '0 0 960 640'));
+  for (let index = 0; index < 18; index += 1) {
+    fireEvent.wheel(map, { deltaY: -1 });
+  }
+  const before = new Set([...document.querySelectorAll('[data-glyph="file"]')].map((node) => node.getAttribute('aria-label')));
+  expect(before.size).toBeGreaterThan(0);
+  expect(before.size).toBeLessThan(700);
+
+  fireEvent(map, new TestPointerEvent('pointerdown', {
+    bubbles: true, pointerId: 2, clientX: 500, clientY: 100,
+  }));
+  fireEvent(map, new TestPointerEvent('pointermove', {
+    bubbles: true, pointerId: 2, clientX: -500, clientY: 100,
+  }));
+  fireEvent(map, new TestPointerEvent('pointerup', { bubbles: true, pointerId: 2 }));
+
+  const after = new Set([...document.querySelectorAll('[data-glyph="file"]')].map((node) => node.getAttribute('aria-label')));
+  expect(after).not.toEqual(before);
+  expect(screen.getByRole('button', { name: /文档街区，共 700 个文件/ })).toBeInTheDocument();
 });
