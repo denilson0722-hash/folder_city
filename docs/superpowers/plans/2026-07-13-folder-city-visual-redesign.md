@@ -14,7 +14,7 @@
 - Keep React + SVG; do not add Three.js, WebGL, minimap, export, sharing, cloud sync, or AI.
 - Auto-fit includes district labels, district plates, buildings, and 6% padding on every side of the unpadded content bounds.
 - Auto-fit runs after scan, filter, container resize and “返回全城”; selection changes do not reset a manually moved view.
-- Exact thresholds: 0–180 show all buildings; 181–600 show deterministic district representatives at city level; 601–1,000 aggregate by first-level directory, category and freshness at city level.
+- Exact thresholds: 0–180 show all buildings; 181–600 show deterministic district representatives at city level; 601–1,000 aggregate by `districtKey + category + freshness` at city level. `districtKey` carries the first-level directory and directory depth, so clusters never cross district boundaries.
 - Aggregation changes display only; source files, totals, sizes and category counts remain exact.
 - Desktop uses top bar + left navigation + center sandbox + right information panel; mobile uses a bottom details drawer.
 - `prefers-reduced-motion` disables view flight and building transitions.
@@ -134,7 +134,7 @@ Expected: FAIL because presentation exports are absent.
 
 - [ ] **Step 3: Implement exact strategies**
 
-For 181–600, select representatives in sorted district order using stride `Math.ceil(count / 24)`, capped at 24 representatives, plus an explicit cluster badge for undisplayed members. For 601–1,000, group by category + first-level directory + freshness. Cluster labels must say “建筑群” and expose count/totalBytes. Visual bounds include 10 units of roof depth, 12 units of shadow and 34 units above district plates for titles. `itemsIntersectingViewBox` expands the current view box by 12% on each side and returns only intersecting visual bounds.
+For 181–600, select representatives in sorted district order using stride `Math.ceil(count / 24)`, capped at 24 representatives, plus an explicit cluster badge for undisplayed members. For 601–1,000, group by `districtKey + category + freshness`; every cluster drills into that exact district. Cluster labels must say “建筑群” and expose count/totalBytes. Visual bounds include 10 units of roof depth, 12 units of shadow and 34 units above district plates for titles. `itemsIntersectingViewBox` expands the current view box by 12% on each side and returns only intersecting visual bounds.
 
 - [ ] **Step 4: Verify and commit**
 

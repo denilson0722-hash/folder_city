@@ -5,6 +5,7 @@ export interface CityNavigationProps {
   activeDistrictKey: string | null;
   onSelectDistrict: (districtKey: string) => void;
   onShowCity: () => void;
+  compact?: boolean;
 }
 
 interface DistrictLink {
@@ -35,8 +36,32 @@ export function CityNavigation({
   activeDistrictKey,
   onSelectDistrict,
   onShowCity,
+  compact = false,
 }: CityNavigationProps) {
   const districts = districtsFor(city);
+
+  if (compact) {
+    return (
+      <label className="city-navigation-select">
+        <span>街区导航</span>
+        <select
+          aria-label="街区导航"
+          value={activeDistrictKey ?? '__city__'}
+          onChange={(event) => {
+            if (event.target.value === '__city__') onShowCity();
+            else onSelectDistrict(event.target.value);
+          }}
+        >
+          <option value="__city__">全城总览</option>
+          {districts.map((district) => (
+            <option key={district.key} value={district.key}>
+              {district.label}（{district.count}）
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
 
   return (
     <nav className="city-navigation" aria-label="城市导航">

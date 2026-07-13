@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState, type ComponentProps } from 'react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
@@ -243,18 +243,22 @@ test('clamps wheel zoom to the supported viewBox range', async () => {
   const map = screen.getByLabelText('文件夹城市地图');
 
   await waitFor(() => expect(map).not.toHaveAttribute('viewBox', '0 0 960 640'));
+  const [, , fittedWidth, fittedHeight] = map.getAttribute('viewBox')!.split(' ').map(Number);
+  const fittedRatio = fittedWidth / fittedHeight;
 
   for (let index = 0; index < 20; index += 1) {
     fireEvent.wheel(map, { deltaY: -1 });
   }
-  expect(map).toHaveAttribute('viewBox', expect.stringMatching(/ 320 186\.66666666666669$/));
+  const [, , minimumWidth, minimumHeight] = map.getAttribute('viewBox')!.split(' ').map(Number);
+  expect(minimumWidth).toBe(320);
+  expect(minimumWidth / minimumHeight).toBeCloseTo(fittedRatio);
 
   for (let index = 0; index < 30; index += 1) {
     fireEvent.wheel(map, { deltaY: 1 });
   }
   const [, , maximumWidth, maximumHeight] = map.getAttribute('viewBox')!.split(' ').map(Number);
   expect(maximumWidth).toBe(1_920);
-  expect(maximumHeight).toBeCloseTo(1_120);
+  expect(maximumWidth / maximumHeight).toBeCloseTo(fittedRatio);
 });
 
 test('reports selected state through aria-pressed', () => {
@@ -340,6 +344,69 @@ test('Escape clears selection before exiting the active district', () => {
   });
   fireEvent.keyDown(screen.getAllByLabelText('文件夹城市地图')[1], { key: 'Escape' });
   expect(onDistrictChange).toHaveBeenCalledWith(null);
+});
+
+test('reports building level for an exact visible selection and Escape unwinds one level at a time', () => {
+  const onClearSelection = vi.fn();
+  const onDistrictChange = vi.fn();
+  const { rerender } = render(
+    <CityMap buildings={buildings} selectedPath={buildings[0].relativePath}
+      activeDistrictKey={buildings[0].districtKey} onDistrictChange={onDistrictChange}
+      onSelect={vi.fn()} onClearSelection={onClearSelection} />,
+  );
+  const map = screen.getByLabelText('文件夹城市地图');
+  expect(screen.getByLabelText('城市地图控制')).toHaveTextContent('建筑级');
+  const districtView = map.getAttribute('viewBox');
+  fireEvent.keyDown(map, { key: 'Escape' });
+  expect(onClearSelection).toHaveBeenCalledOnce();
+
+  rerender(<CityMap buildings={buildings} selectedPath={null}
+    activeDistrictKey={buildings[0].districtKey} onDistrictChange={onDistrictChange}
+    onSelect={vi.fn()} onClearSelection={onClearSelection} />);
+  expect(screen.getByLabelText('城市地图控制')).toHaveTextContent('街区级');
+  expect(map).toHaveAttribute('viewBox', districtView);
+  fireEvent.keyDown(map, { key: 'Escape' });
+  expect(onDistrictChange).toHaveBeenCalledWith(null);
+});
+
+test('interpolates programmatic fits with requestAnimationFrame and bypasses it exactly for reduced motion', async () => {
+  const originalRaf = globalThis.requestAnimationFrame;
+  const originalCancel = globalThis.cancelAnimationFrame;
+  const originalMatchMedia = window.matchMedia;
+  const callbacks: FrameRequestCallback[] = [];
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    callbacks.push(callback); return callbacks.length;
+  }));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
+  try {
+    renderMap();
+    await waitFor(() => expect(callbacks.length).toBeGreaterThan(0));
+    const map = screen.getByLabelText('文件夹城市地图');
+    const initial = map.getAttribute('viewBox');
+    act(() => callbacks.shift()!(0));
+    act(() => callbacks.shift()!(90));
+    expect(map.getAttribute('viewBox')).not.toBe(initial);
+    expect(callbacks.length).toBeGreaterThan(0);
+    act(() => callbacks.shift()!(180));
+
+    document.body.innerHTML = '';
+    callbacks.length = 0;
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: true } as MediaQueryList);
+    renderMap();
+    await waitFor(() => expect(screen.getByLabelText('文件夹城市地图')).not.toHaveAttribute('viewBox', '0 0 960 640'));
+    expect(callbacks).toHaveLength(0);
+  } finally {
+    vi.stubGlobal('requestAnimationFrame', originalRaf);
+    vi.stubGlobal('cancelAnimationFrame', originalCancel);
+    vi.stubGlobal('matchMedia', originalMatchMedia);
+  }
+});
+
+test('falls back to a safe map and understandable error when source bounds are invalid', () => {
+  renderMap({ buildings: [{ ...buildings[0], x: Number.NaN }] });
+  expect(screen.getByLabelText('文件夹城市地图')).toHaveAttribute('viewBox', '0 0 960 640');
+  expect(screen.getByRole('alert')).toHaveTextContent('城市视图暂时无法计算');
 });
 
 function manyBuildings(count: number): CityBuilding[] {

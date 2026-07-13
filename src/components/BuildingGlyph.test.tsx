@@ -94,3 +94,16 @@ test.each([
 
   expect(container.querySelector('[data-windows]') !== null).toBe(expected);
 });
+
+test.each(['recent', 'current', 'aged'] as const)('renders a non-color %s freshness texture', (freshness) => {
+  const texturedBuilding = { ...building, freshness };
+  const texturedItem: CityVisualItem = { ...fileItem, building: texturedBuilding };
+  const { container } = render(
+    <svg><BuildingGlyph item={texturedItem} selected={false} onSelect={vi.fn()} /></svg>,
+  );
+
+  expect(container.querySelector(`[data-texture="freshness-${freshness}"]`)).toHaveAttribute(
+    'fill',
+    `url(#freshness-${freshness})`,
+  );
+});

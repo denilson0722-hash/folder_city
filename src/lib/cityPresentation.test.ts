@@ -96,13 +96,13 @@ describe('presentationFor city thresholds', () => {
     expect(presentation.sourceCount).toBe(600);
   });
 
-  test('aggregates every source by category, first-level directory and freshness above 600', () => {
+  test('aggregates every source by district identity, category and freshness above 600', () => {
     const buildings = makeBuildings(700, { districts: 4, categories: 2 });
     const presentation = presentationFor(buildings, { level: 'city', districtKey: null });
     const clusters = presentation.items.filter((item) => item.kind === 'cluster');
 
     expect(presentation.items.every((item) => item.kind === 'cluster')).toBe(true);
-    expect(clusters).toHaveLength(6);
+    expect(clusters).toHaveLength(12);
     expect(clusters.reduce((sum, cluster) => sum + cluster.count, 0)).toBe(700);
     expect(clusters.reduce((sum, cluster) => sum + cluster.totalBytes, 0)).toBe(
       buildings.reduce((sum, building) => sum + building.size, 0),
@@ -125,7 +125,7 @@ describe('presentationFor city thresholds', () => {
     expect(second.districts).toEqual(first.districts);
   });
 
-  test('chooses an aggregate representative by relative path even when a group crosses districts', () => {
+  test('keeps same-directory districts at different depths in separate clusters and drill targets', () => {
     const buildings = makeBuildings(601);
     buildings.forEach((building, index) => {
       building.firstLevelDirectory = 'shared';
@@ -138,9 +138,33 @@ describe('presentationFor city thresholds', () => {
 
     const presentation = presentationFor(buildings, { level: 'city', districtKey: null });
 
-    expect(presentation.items).toHaveLength(1);
-    expect(presentation.items[0].kind === 'cluster' && presentation.items[0].representative.relativePath)
-      .toBe('a/earliest.txt');
+    expect(presentation.items).toHaveLength(2);
+    const clusters = presentation.items.filter((item) => item.kind === 'cluster');
+    expect(new Set(clusters.map((item) => item.districtKey))).toEqual(new Set([
+      'document:shared:1',
+      'document:shared:2',
+    ]));
+    for (const cluster of clusters) {
+      const drill = presentationFor(buildings, { level: 'district', districtKey: cluster.districtKey });
+      expect(drill.items.every((item) => item.kind === 'building' && item.building.districtKey === cluster.districtKey)).toBe(true);
+    }
+  });
+
+  test('compacts a 700-file single-district city independently of its huge source layout', () => {
+    const buildings = makeBuildings(700);
+    buildings.forEach((building, index) => {
+      building.x = index * 50_000;
+      building.y = index * 30_000;
+    });
+
+    const city = presentationFor(buildings, { level: 'city', districtKey: null });
+    const district = city.districts[0];
+    expect(district.bounds.maxY - district.bounds.minY).toBeLessThan(600);
+    expect(district.bounds.maxX - district.bounds.minX).toBeLessThan(900);
+    expect(city.items.every((item) => item.bounds.maxX < 1_000 && item.bounds.maxY < 1_000)).toBe(true);
+
+    const drill = presentationFor(buildings, { level: 'district', districtKey: district.key });
+    expect(drill.contentBounds!.maxX).toBeGreaterThan(1_000_000);
   });
 });
 
@@ -197,8 +221,11 @@ describe('visual bounds', () => {
     const presentation = presentationFor([building], { level: 'city', districtKey: null });
     const item = presentation.items[0];
 
-    expect(item.bounds).toEqual({ minX: 100, minY: 190, maxX: 166, maxY: 252 });
-    expect(presentation.districts[0].bounds).toEqual({ minX: 76, minY: 132, maxX: 338, maxY: 276 });
+    expect(item.kind).toBe('building');
+    if (item.kind !== 'building') throw new Error('Expected a building item.');
+    expect(item.bounds).toEqual({ minX: 42, minY: 82, maxX: 108, maxY: 144 });
+    expect(item.displayBuilding).toMatchObject({ x: 42, y: 92, width: 54, height: 40 });
+    expect(presentation.districts[0].bounds).toEqual({ minX: 18, minY: 24, maxX: 280, maxY: 168 });
     expect(presentation.contentBounds).toEqual(presentation.districts[0].bounds);
   });
 

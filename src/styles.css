@@ -36,8 +36,7 @@ button {
 button:hover { background: #173a73; }
 
 button:focus-visible,
-select:focus-visible,
-.city-building:focus-visible rect {
+select:focus-visible {
   outline: 3px solid #fff28a;
   outline-offset: 3px;
 }
@@ -116,6 +115,14 @@ select:focus-visible,
   overflow: auto;
 }
 
+.city-navigation-select {
+  display: none;
+  gap: 0.35rem;
+  color: #c6d7f7;
+  font-size: 0.85rem;
+}
+.city-navigation-select select { width: 100%; min-width: 0; padding: 0.65rem; }
+
 .city-navigation__eyebrow {
   margin: 0 0 0.35rem;
   color: #7de7ff;
@@ -186,7 +193,7 @@ select:focus-visible,
 
 [aria-label="文件夹城市地图"] {
   width: 100%;
-  min-height: min(62vh, 42rem);
+  height: min(62vh, 42rem);
   border: 1px solid rgba(125, 231, 255, 0.6);
   border-radius: 0.85rem;
   background:
@@ -198,11 +205,6 @@ select:focus-visible,
 }
 
 .city-map { min-width: 0; }
-
-.city-districts { pointer-events: none; }
-.city-district rect { fill: rgba(125, 231, 255, 0.06); stroke: rgba(125, 231, 255, 0.52); stroke-width: 1.5; stroke-dasharray: 7 5; }
-.city-district text { fill: #c6d7f7; font-size: 15px; font-weight: 700; }
-.city-category-label { fill: #ffffff; font-size: 22px; font-weight: 800; letter-spacing: 0.04em; }
 
 .city-map__legend {
   display: grid;
@@ -218,13 +220,8 @@ select:focus-visible,
 .city-map__legend li { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.86rem; }
 .city-map__legend p { margin: 0; color: #c6d7f7; font-size: 0.85rem; line-height: 1.5; }
 .city-map__swatch { width: 0.85rem; height: 0.85rem; border: 1px solid #ffffff; border-radius: 0.18rem; }
-
-.city-building { cursor: pointer; }
-.city-building rect { transition: stroke-width 140ms ease, filter 140ms ease; }
-.city-building:hover rect { filter: brightness(1.2); }
-.city-building--recent rect { stroke-dasharray: none; }
-.city-building--current rect { stroke-dasharray: 5 2; }
-.city-building--aged rect { stroke-dasharray: 2 3; }
+.city-map__error-bg { fill: rgba(46, 15, 30, 0.96); stroke: #ff8b8b; stroke-width: 2; }
+.city-map__error-text { fill: #ffe3e3; font-size: 18px; font-weight: 700; }
 
 .building-glyph,
 .district-layer { cursor: pointer; }
@@ -238,6 +235,7 @@ select:focus-visible,
 }
 
 .building-glyph__front { fill: #8b949e; }
+.building-glyph__texture { pointer-events: none; stroke: none; }
 .building-glyph__roof { fill: #b7c0ca; }
 .building-glyph__side { fill: #626a74; }
 .building-glyph--document .building-glyph__front { fill: #58a6ff; }
@@ -336,6 +334,7 @@ select:focus-visible,
   .city-toolbar,
   .city-sandbox { grid-template-columns: minmax(0, 1fr); }
   .city-navigation { display: none; }
+  .city-navigation-select { display: grid; }
   .city-sandbox__info { display: none; }
   .city-sandbox__info--drawer:not(.city-sandbox__info--empty) {
     position: fixed;
@@ -350,11 +349,11 @@ select:focus-visible,
     background: rgba(7, 26, 57, 0.97);
     box-shadow: 0 -1rem 3rem rgba(0, 0, 0, 0.45);
   }
-  [aria-label="文件夹城市地图"] { min-height: 26rem; }
+  [aria-label="文件夹城市地图"] { height: 26rem; }
 }
 
 @media (max-width: 640px) {
-  [aria-label="文件夹城市地图"] { min-height: 70svh; }
+  [aria-label="文件夹城市地图"] { height: 70svh; }
   .city-controls { align-items: stretch; }
 }
 

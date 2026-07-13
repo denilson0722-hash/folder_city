@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
 
@@ -62,5 +62,28 @@ test('emits district and full-city navigation without owning selection state', a
   await user.click(screen.getByRole('button', { name: '全城概览，共 2 个文件' }));
 
   expect(onSelectDistrict).toHaveBeenCalledWith(city.find((building) => building.category === 'document')!.districtKey);
+  expect(onShowCity).toHaveBeenCalledOnce();
+});
+
+test('provides a compact mobile selector containing the city and every district', async () => {
+  const user = userEvent.setup();
+  const onSelectDistrict = vi.fn();
+  const onShowCity = vi.fn();
+  render(
+    <CityNavigation
+      city={city}
+      activeDistrictKey={null}
+      onSelectDistrict={onSelectDistrict}
+      onShowCity={onShowCity}
+      compact
+    />,
+  );
+
+  const select = screen.getByRole('combobox', { name: '街区导航' });
+  expect(within(select).getByRole('option', { name: '全城总览' })).toBeInTheDocument();
+  expect(within(select).getAllByRole('option')).toHaveLength(3);
+  await user.selectOptions(select, city[1].districtKey);
+  expect(onSelectDistrict).toHaveBeenCalledWith(city[1].districtKey);
+  await user.selectOptions(select, '__city__');
   expect(onShowCity).toHaveBeenCalledOnce();
 });

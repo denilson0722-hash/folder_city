@@ -77,32 +77,111 @@ export function CityMap({
   activeDistrictKey,
   onDistrictChange,
 }: CityMapProps) {
-  const [level, setLevel] = useState<CityLevel>(activeDistrictKey === null ? 'city' : 'district');
+  const selectedBuilding = selectedPath === null
+    ? undefined
+    : buildings.find((building) => building.relativePath === selectedPath);
+  const level: CityLevel = activeDistrictKey === null
+    ? 'city'
+    : selectedBuilding?.districtKey === activeDistrictKey ? 'building' : 'district';
+  const presentationLevel: CityLevel = level === 'building' ? 'district' : level;
   const [viewBox, setViewBox] = useState<ViewBox>(INITIAL_VIEW_BOX);
   const [viewportSize, setViewportSize] = useState<ViewportSize>(EMPTY_VIEWPORT);
   const [manualView, setManualView] = useState(false);
   const [flight, setFlight] = useState(false);
+  const [viewError, setViewError] = useState<string | null>(null);
   const containerRef = useRef<HTMLElement>(null);
   const mapRef = useRef<SVGSVGElement>(null);
   const activePointer = useRef<{ id: number; x: number; y: number } | null>(null);
+  const viewBoxRef = useRef<ViewBox>(INITIAL_VIEW_BOX);
+  const animationFrame = useRef<number | null>(null);
 
-  useEffect(() => {
-    setLevel(activeDistrictKey === null ? 'city' : 'district');
-  }, [activeDistrictKey]);
-
-  const presentation = useMemo(
-    () => presentationFor(buildings, { level, districtKey: activeDistrictKey }),
-    [activeDistrictKey, buildings, level],
+  const presentationResult = useMemo(() => {
+    try {
+      return {
+        presentation: presentationFor(buildings, {
+          level: presentationLevel,
+          districtKey: activeDistrictKey,
+        }),
+        error: null,
+      };
+    } catch {
+      return {
+        presentation: { items: [], districts: [], contentBounds: null, sourceCount: 0 },
+        error: '城市视图暂时无法计算，请检查文件元数据后重试。',
+      };
+    }
+  },
+    [activeDistrictKey, buildings, presentationLevel],
   );
+  const presentation = presentationResult.presentation;
+
+  const applyViewBox = useCallback((next: ViewBox) => {
+    viewBoxRef.current = next;
+    setViewBox(next);
+  }, []);
+
+  const stopFlight = useCallback(() => {
+    if (animationFrame.current !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(animationFrame.current);
+      animationFrame.current = null;
+    }
+    setFlight(false);
+  }, []);
+
+  const flyTo = useCallback((target: ViewBox) => {
+    if (animationFrame.current !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(animationFrame.current);
+      animationFrame.current = null;
+    }
+    if (reducedMotionPreferred() || typeof requestAnimationFrame !== 'function') {
+      applyViewBox(target);
+      setFlight(false);
+      return;
+    }
+
+    const start = viewBoxRef.current;
+    let startTime: number | null = null;
+    setFlight(true);
+    const step = (timestamp: number) => {
+      startTime ??= timestamp;
+      const progress = Math.min(1, (timestamp - startTime) / 180);
+      const next: ViewBox = {
+        x: start.x + (target.x - start.x) * progress,
+        y: start.y + (target.y - start.y) * progress,
+        width: start.width + (target.width - start.width) * progress,
+        height: start.height + (target.height - start.height) * progress,
+      };
+      applyViewBox(next);
+      if (progress < 1) animationFrame.current = requestAnimationFrame(step);
+      else {
+        animationFrame.current = null;
+        setFlight(false);
+      }
+    };
+    animationFrame.current = requestAnimationFrame(step);
+  }, [applyViewBox]);
 
   const fitPresentation = useCallback(() => {
     if (presentation.contentBounds === null || viewportSize.width <= 0 || viewportSize.height <= 0) {
       return;
     }
-    setViewBox(fitBounds(presentation.contentBounds, viewportSize));
-    setManualView(false);
-    setFlight(!reducedMotionPreferred());
-  }, [presentation.contentBounds, viewportSize]);
+    try {
+      const fitted = fitBounds(presentation.contentBounds, viewportSize);
+      setViewError(null);
+      flyTo(fitted);
+      setManualView(false);
+    } catch {
+      applyViewBox(INITIAL_VIEW_BOX);
+      setFlight(false);
+      setViewError('城市视图暂时无法计算，请检查文件元数据后重试。');
+    }
+  }, [applyViewBox, flyTo, presentation.contentBounds, viewportSize]);
+
+  useEffect(() => () => {
+    if (animationFrame.current !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(animationFrame.current);
+    }
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -150,8 +229,9 @@ export function CityMap({
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
       setManualView(true);
-      setFlight(false);
-      setViewBox((current) => clampZoom(
+      stopFlight();
+      const current = viewBoxRef.current;
+      applyViewBox(clampZoom(
         current,
         event.deltaY < 0 ? 0.9 : 1.1,
         viewportCenter(current),
@@ -160,7 +240,7 @@ export function CityMap({
 
     map.addEventListener('wheel', handleWheel, { passive: false });
     return () => map.removeEventListener('wheel', handleWheel);
-  }, []);
+  }, [applyViewBox, stopFlight]);
 
   const renderedItems = level === 'district' && presentation.sourceCount > LARGE_DISTRICT_THRESHOLD
     ? itemsIntersectingViewBox(presentation.items, viewBox)
@@ -183,8 +263,9 @@ export function CityMap({
     const deltaY = event.clientY - pointer.y;
     activePointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
     setManualView(true);
-    setFlight(false);
-    setViewBox((current) => ({ ...current, x: current.x - deltaX, y: current.y - deltaY }));
+    stopFlight();
+    const current = viewBoxRef.current;
+    applyViewBox({ ...current, x: current.x - deltaX, y: current.y - deltaY });
   }
 
   function handlePointerEnd(event: PointerEvent<SVGSVGElement>) {
@@ -203,8 +284,9 @@ export function CityMap({
 
   function changeZoom(scale: number) {
     setManualView(true);
-    setFlight(false);
-    setViewBox((current) => clampZoom(current, scale, viewportCenter(current)));
+    stopFlight();
+    const current = viewBoxRef.current;
+    applyViewBox(clampZoom(current, scale, viewportCenter(current)));
   }
 
   return (
@@ -242,6 +324,17 @@ export function CityMap({
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
       >
+        <defs aria-hidden="true">
+          <pattern id="freshness-recent" width="12" height="12" patternUnits="userSpaceOnUse">
+            <path d="M0 11 L11 0" stroke="rgba(255,255,255,.34)" strokeWidth="1" />
+          </pattern>
+          <pattern id="freshness-current" width="10" height="10" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.2" fill="rgba(255,255,255,.34)" />
+          </pattern>
+          <pattern id="freshness-aged" width="8" height="8" patternUnits="userSpaceOnUse">
+            <path d="M0 4 H8" stroke="rgba(255,255,255,.28)" strokeWidth="1" />
+          </pattern>
+        </defs>
         {presentation.districts.map((district) => (
           <g key={district.key}>
             <DistrictLayer
@@ -266,6 +359,14 @@ export function CityMap({
             onSelect={selectItem}
           />
         ))}
+        {presentationResult.error !== null || viewError !== null ? (
+          <g role="alert" aria-label="城市视图错误">
+            <rect x="120" y="260" width="720" height="120" rx="16" className="city-map__error-bg" />
+            <text x="480" y="325" textAnchor="middle" className="city-map__error-text">
+              {presentationResult.error ?? viewError}
+            </text>
+          </g>
+        ) : null}
       </svg>
       <aside className="city-map__legend" aria-label="类型图例">
         <strong>类型图例</strong>

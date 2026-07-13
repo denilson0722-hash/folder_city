@@ -65,6 +65,16 @@ function BuildingShape({
         width={width}
         height={height}
       />
+      <rect
+        data-texture={`freshness-${building.freshness}`}
+        className="building-glyph__texture"
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={`url(#freshness-${building.freshness})`}
+        aria-hidden="true"
+      />
       <polygon
         data-face="roof"
         className="building-glyph__roof"
@@ -109,7 +119,8 @@ function ClusterShape({ item }: { item: Extract<CityVisualItem, { kind: 'cluster
 }
 
 export function BuildingGlyph({ item, selected, onSelect }: BuildingGlyphProps) {
-  const building = item.kind === 'building' ? item.building : item.representative;
+  const building = item.displayBuilding
+    ?? (item.kind === 'building' ? item.building : item.representative);
   const accessibleName = item.kind === 'building'
     ? `${building.name}，${building.districtLabel}`
     : `${item.label}，共 ${item.count} 个文件`;

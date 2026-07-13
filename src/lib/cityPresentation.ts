@@ -143,8 +143,8 @@ function aggregateItems(buildings: readonly CityBuilding[]): CityVisualItem[] {
   const groups = new Map<string, CityBuilding[]>();
   for (const building of buildings) {
     const groupKey = JSON.stringify([
+      building.districtKey,
       building.category,
-      building.firstLevelDirectory,
       building.freshness,
     ]);
     const members = groups.get(groupKey) ?? [];
@@ -175,6 +175,94 @@ function aggregateItems(buildings: readonly CityBuilding[]): CityVisualItem[] {
     });
 }
 
+function displayBuildingFor(building: CityBuilding, x: number, y: number): CityBuilding {
+  return { ...building, x, y };
+}
+
+function placeItem(item: CityVisualItem, x: number, y: number): CityVisualItem {
+  const source = item.kind === 'building' ? item.building : item.representative;
+  const displayBuilding = displayBuildingFor(source, x, y);
+  const bounds = boundsForBuilding(displayBuilding);
+  return item.kind === 'building'
+    ? { ...item, displayBuilding, bounds }
+    : {
+      ...item,
+      displayBuilding,
+      bounds: {
+        minX: x - 12,
+        minY: y - 22,
+        maxX: Math.max(bounds.maxX, x + displayBuilding.width + 36),
+        maxY: bounds.maxY,
+      },
+    };
+}
+
+function compactCityLayout(
+  items: readonly CityVisualItem[],
+  buildings: readonly CityBuilding[],
+): { items: CityVisualItem[]; districts: CityDistrict[] } {
+  const sourcesByDistrict = groupsByDistrict(buildings);
+  const itemsByDistrict = new Map<string, CityVisualItem[]>();
+  for (const item of items) {
+    const districtKey = item.kind === 'building' ? item.building.districtKey : item.districtKey;
+    const members = itemsByDistrict.get(districtKey) ?? [];
+    members.push(item);
+    itemsByDistrict.set(districtKey, members);
+  }
+
+  const keys = [...sourcesByDistrict.keys()].sort(compareText);
+  const placedItems: CityVisualItem[] = [];
+  const districts: CityDistrict[] = [];
+  let rowY = 0;
+  let rowHeight = 0;
+
+  keys.forEach((key, districtIndex) => {
+    if (districtIndex > 0 && districtIndex % 2 === 0) {
+      rowY += rowHeight + 48;
+      rowHeight = 0;
+    }
+    const column = districtIndex % 2;
+    const originX = column * 700;
+    const sourceMembers = sourcesByDistrict.get(key)!;
+    const visibleMembers = itemsByDistrict.get(key) ?? [];
+    const columns = Math.min(8, Math.max(1, Math.ceil(Math.sqrt(visibleMembers.length * 1.5))));
+    const districtItems = visibleMembers.map((item, index) => placeItem(
+      item,
+      originX + 42 + (index % columns) * 78,
+      rowY + 92 + Math.floor(index / columns) * 112,
+    ));
+    placedItems.push(...districtItems);
+    const first = sourceMembers[0];
+    const itemBounds = unionBounds(districtItems.map((item) => item.bounds)) ?? {
+      minX: originX + 42,
+      minY: rowY + 70,
+      maxX: originX + 220,
+      maxY: rowY + 180,
+    };
+    const minX = itemBounds.minX - DISTRICT_PADDING;
+    const titleMaxX = minX + DISTRICT_TITLE_LEFT + estimatedTitleWidth(first.districtLabel) + DISTRICT_TITLE_BADGE_GAP;
+    const bounds: Bounds = {
+      minX,
+      minY: itemBounds.minY - DISTRICT_PADDING - DISTRICT_TITLE_HEIGHT,
+      maxX: Math.max(itemBounds.maxX + DISTRICT_PADDING, titleMaxX),
+      maxY: itemBounds.maxY + DISTRICT_PADDING,
+    };
+    rowHeight = Math.max(rowHeight, bounds.maxY - rowY);
+    districts.push({
+      key,
+      label: first.districtLabel,
+      category: first.category,
+      firstLevelDirectory: first.firstLevelDirectory,
+      directoryDepth: first.directoryDepth,
+      count: sourceMembers.length,
+      totalBytes: sourceMembers.reduce((sum, building) => sum + building.size, 0),
+      bounds,
+    });
+  });
+
+  return { items: placedItems, districts };
+}
+
 function cityItems(buildings: readonly CityBuilding[]): CityVisualItem[] {
   if (buildings.length <= CITY_EXACT_LIMIT) {
     return buildings.map(buildingItem);
@@ -190,29 +278,30 @@ export function presentationFor(
   options: PresentationOptions,
 ): CityPresentation {
   const sortedBuildings = [...buildings].sort(compareBuildings);
-  const districts = districtsFor(sortedBuildings);
+  const sourceDistricts = districtsFor(sortedBuildings);
 
   if (options.level !== 'city') {
     const district = options.districtKey === null
       ? undefined
-      : districts.find((candidate) => candidate.key === options.districtKey);
+      : sourceDistricts.find((candidate) => candidate.key === options.districtKey);
     if (district === undefined) {
-      return { items: [], districts, contentBounds: null, sourceCount: 0 };
+      return { items: [], districts: sourceDistricts, contentBounds: null, sourceCount: 0 };
     }
 
     const districtBuildings = sortedBuildings.filter((building) => building.districtKey === district.key);
     return {
       items: districtBuildings.map(buildingItem),
-      districts,
+      districts: sourceDistricts,
       contentBounds: district.bounds,
       sourceCount: districtBuildings.length,
     };
   }
 
+  const city = compactCityLayout(cityItems(sortedBuildings), sortedBuildings);
   return {
-    items: cityItems(sortedBuildings),
-    districts,
-    contentBounds: unionBounds(districts.map((district) => district.bounds)),
+    items: city.items,
+    districts: city.districts,
+    contentBounds: unionBounds(city.districts.map((district) => district.bounds)),
     sourceCount: sortedBuildings.length,
   };
 }

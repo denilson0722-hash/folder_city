@@ -195,6 +195,19 @@ test('uses a mobile drawer without changing the selected building story', async 
   expect(details).toHaveTextContent('“index.ts”属于代码街区 · src · 深度 1');
 });
 
+test('keeps district navigation usable on mobile', async () => {
+  const user = userEvent.setup();
+  setViewport(390);
+  populateTwoDistricts();
+  render(<App />);
+  const select = screen.getByRole('combobox', { name: '街区导航' });
+  expect(within(select).getAllByRole('option')).toHaveLength(3);
+  await user.selectOptions(select, 'code:src:1');
+  expect(screen.getByLabelText('城市地图控制')).toHaveTextContent('街区级');
+  await user.selectOptions(select, '__city__');
+  expect(screen.getByLabelText('城市地图控制')).toHaveTextContent('全城级');
+});
+
 test.each([
   { count: 20, strategy: 'exact' },
   { count: 200, strategy: 'representative' },

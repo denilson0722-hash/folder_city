@@ -64,6 +64,7 @@ export interface CityBuildingVisualItem {
   kind: 'building';
   key: string;
   building: CityBuilding;
+  displayBuilding?: CityBuilding;
   bounds: Bounds;
 }
 
@@ -78,6 +79,7 @@ export interface CityClusterVisualItem {
   firstLevelDirectory: string;
   districtKey: string;
   representative: CityBuilding;
+  displayBuilding?: CityBuilding;
   bounds: Bounds;
 }
 

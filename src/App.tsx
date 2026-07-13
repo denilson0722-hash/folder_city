@@ -60,12 +60,13 @@ function CitySandbox({
 
   return (
     <section className="city-sandbox" aria-label="城市工作台">
-      <CityNavigation
-        city={buildings}
-        activeDistrictKey={activeDistrictKey}
-        onSelectDistrict={onDistrictChange}
-        onShowCity={() => onDistrictChange(null)}
-      />
+      {narrow ? (
+        <CityNavigation city={buildings} activeDistrictKey={activeDistrictKey}
+          onSelectDistrict={onDistrictChange} onShowCity={() => onDistrictChange(null)} compact />
+      ) : (
+        <CityNavigation city={buildings} activeDistrictKey={activeDistrictKey}
+          onSelectDistrict={onDistrictChange} onShowCity={() => onDistrictChange(null)} />
+      )}
       <section className="city-sandbox__map" aria-label="城市沙盘">
         {buildings.length === 0 ? (
           <p className="filtered-empty" aria-live="polite">没有建筑符合当前筛选条件。</p>
